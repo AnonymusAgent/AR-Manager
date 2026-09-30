@@ -4,7 +4,8 @@ import React, { useState, useEffect } from 'react';
 import { Input } from '@/components/ui/Input';
 import { Button } from '@/components/ui/Button';
 import { Card } from '@/components/ui/Card';
-import { FileText, AlertCircle } from 'lucide-react';
+import { BrandMark } from '@/components/ui/BrandMark';
+import { AlertCircle } from 'lucide-react';
 
 export default function LoginPage() {
   const [email, setEmail] = useState('');
@@ -112,8 +113,8 @@ export default function LoginPage() {
     <div className="min-h-screen bg-gradient-to-br from-blue-600 to-blue-800 flex items-center justify-center p-4">
       <div className="w-full max-w-md">
         <div className="text-center mb-8">
-          <div className="inline-flex items-center justify-center w-16 h-16 bg-white rounded-2xl shadow-lg mb-4">
-            <FileText className="w-8 h-8 text-blue-600" />
+          <div className="flex justify-center mb-4">
+            <BrandMark size="lg" surface="light" />
           </div>
           <h1 className="text-3xl font-bold text-white">AR Manager</h1>
           <p className="text-blue-200 mt-2">Medical Billing AR Management System</p>

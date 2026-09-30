@@ -3,6 +3,7 @@
 import React from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
+import { BrandMark } from '@/components/ui/BrandMark';
 import {
   LayoutDashboard, FileText, Users, Upload, Bell, ClipboardList, FileSearch,
   History, LogOut, ChevronLeft, ChevronRight, Building2, CheckSquare,
@@ -57,7 +58,7 @@ export function Sidebar({ user, collapsed, onToggle, onLogout }: SidebarProps) {
         <div className="flex items-center justify-between h-14 px-3 border-b border-white/10">
           {!collapsed && (
             <div className="flex items-center gap-2.5">
-              <div className="w-8 h-8 bg-[#2563EB] rounded-lg flex items-center justify-center font-bold text-xs">AR</div>
+              <BrandMark size="sm" />
               <span className="font-bold text-sm tracking-tight">AR Manager</span>
             </div>
           )}

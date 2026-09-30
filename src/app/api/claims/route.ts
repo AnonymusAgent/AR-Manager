@@ -151,24 +151,21 @@ export async function GET(request: NextRequest) {
       .limit(limit)
       .offset((page - 1) * limit);
 
-    // Get assignee and approver names
-    const claimsWithNames = await Promise.all(
-      result.map(async (claim) => {
-        let assigneeName = null;
-        let approvedByName = null;
-
-        if (claim.assignedTo) {
-          const [a] = await db.select({ firstName: users.firstName, lastName: users.lastName }).from(users).where(eq(users.id, claim.assignedTo)).limit(1);
-          assigneeName = a ? `${a.firstName} ${a.lastName}` : null;
-        }
-        if (claim.approvedBy) {
-          const [a] = await db.select({ firstName: users.firstName, lastName: users.lastName }).from(users).where(eq(users.id, claim.approvedBy)).limit(1);
-          approvedByName = a ? `${a.firstName} ${a.lastName}` : null;
-        }
-
-        return { ...claim, assigneeName, approvedByName };
-      })
-    );
+    // Resolve all assignee and approver names in one query instead of per claim.
+    const userIds = Array.from(new Set(
+      result.flatMap(claim => [claim.assignedTo, claim.approvedBy].filter((id): id is string => Boolean(id)))
+    ));
+    const nameRows = userIds.length > 0
+      ? await db.select({ id: users.id, firstName: users.firstName, lastName: users.lastName })
+          .from(users)
+          .where(inArray(users.id, userIds))
+      : [];
+    const namesById = new Map(nameRows.map(user => [user.id, `${user.firstName} ${user.lastName}`]));
+    const claimsWithNames = result.map(claim => ({
+      ...claim,
+      assigneeName: claim.assignedTo ? namesById.get(claim.assignedTo) || null : null,
+      approvedByName: claim.approvedBy ? namesById.get(claim.approvedBy) || null : null,
+    }));
 
     return NextResponse.json({
       claims: claimsWithNames,

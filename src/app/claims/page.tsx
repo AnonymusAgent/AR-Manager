@@ -65,6 +65,7 @@ export default function ClaimsPage() {
   const [claims, setClaims] = useState<Claim[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
+  const [debouncedSearch, setDebouncedSearch] = useState('');
   const [mainTab, setMainTab] = useState<MainTab>('unworked');
   const [recordFilter, setRecordFilter] = useState('all');
   const [page, setPage] = useState(1);
@@ -87,6 +88,11 @@ export default function ClaimsPage() {
     fetch('/api/practices/my', { credentials: 'include' }).then(r => r.json()).then(d => setMyPractices(d.practices || [])).catch(console.error);
   }, []);
 
+  useEffect(() => {
+    const timeout = setTimeout(() => setDebouncedSearch(search.trim()), 300);
+    return () => clearTimeout(timeout);
+  }, [search]);
+
   // Fetch counts for badges
   const fetchCounts = useCallback(async () => {
     try {
@@ -100,7 +106,7 @@ export default function ClaimsPage() {
     setLoading(true);
     try {
       const params = new URLSearchParams({ page: String(page), limit: '50' });
-      if (search) params.set('search', search);
+      if (debouncedSearch) params.set('search', debouncedSearch);
       if (practiceFilter) params.set('practiceId', practiceFilter);
 
       // Map tab to workflow/status filter
@@ -123,7 +129,7 @@ export default function ClaimsPage() {
       if (res.ok) { setClaims(d.claims); setTotal(d.pagination.total); setTotalPages(d.pagination.totalPages); }
     } catch (e) { console.error(e); }
     finally { setLoading(false); }
-  }, [page, mainTab, recordFilter, search, practiceFilter]);
+  }, [page, mainTab, recordFilter, debouncedSearch, practiceFilter]);
 
   useEffect(() => { fetchClaims(); }, [fetchClaims]);
   useEffect(() => { fetchCounts(); }, [fetchCounts]);
@@ -204,7 +210,7 @@ export default function ClaimsPage() {
 
         {/* Toolbar */}
         <div className="px-4 py-2.5 border-b border-[#E5E7EB] flex items-center justify-between gap-3">
-          <form onSubmit={e => { e.preventDefault(); setPage(1); fetchClaims(); }} className="relative flex-1 max-w-xs">
+          <form onSubmit={e => { e.preventDefault(); setPage(1); setDebouncedSearch(search.trim()); }} className="relative flex-1 max-w-xs">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-[#94A3B8]" />
             <input type="text" placeholder="Search claim, patient, payer" value={search} onChange={e => setSearch(e.target.value)}
               className="w-full pl-8 pr-3 py-1.5 rounded-md border border-[#E5E7EB] text-[13px] focus:outline-none focus:ring-2 focus:ring-[#2563EB]/20 placeholder:text-[#94A3B8]" />
