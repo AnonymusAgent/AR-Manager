@@ -93,6 +93,7 @@ export default function ClaimDetailPage({ params }: { params: Promise<{ id: stri
   const [statusHistory, setStatusHistory] = useState<StatusHistoryItem[]>([]);
   const [documents, setDocuments] = useState<DocItem[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState('');
   const [saving, setSaving] = useState(false);
   const [currentUser, setCurrentUser] = useState<CurrentUser | null>(null);
 
@@ -122,17 +123,27 @@ export default function ClaimDetailPage({ params }: { params: Promise<{ id: stri
     try {
       const res = await fetch(`/api/claims/${id}`, { credentials: 'include' });
       const data = await res.json();
-      if (res.ok) {
-        setClaim(data.claim); setNotes(data.notes); setStatusHistory(data.statusHistory); setDocuments(data.documents);
-        // Load existing denial code if claim has one
-        if (data.claim.denialCode) {
-          setSelectedDenialCode(data.claim.denialCode);
-          setDenialReasonText(data.claim.denialReason || data.claim.denialCode.description || '');
-        } else if (data.claim.denialReason) {
-          setDenialReasonText(data.claim.denialReason);
-        }
+      if (res.status === 401) {
+        setLoadError('Your session has expired. Please sign in again.');
+        return;
       }
-    } catch (e) { console.error(e); }
+      if (!res.ok) {
+        setLoadError(res.status === 404 ? 'Claim not found' : res.status === 403 ? 'You do not have access to this claim.' : data.error || 'Unable to load this claim.');
+        return;
+      }
+
+      setLoadError('');
+      setClaim(data.claim); setNotes(data.notes); setStatusHistory(data.statusHistory); setDocuments(data.documents);
+      if (data.claim.denialCode) {
+        setSelectedDenialCode(data.claim.denialCode);
+        setDenialReasonText(data.claim.denialReason || data.claim.denialCode.description || '');
+      } else if (data.claim.denialReason) {
+        setDenialReasonText(data.claim.denialReason);
+      }
+    } catch (e) {
+      console.error(e);
+      setLoadError('Unable to load this claim. Please try again.');
+    }
     finally { setLoading(false); }
   }, [id]);
 
@@ -255,7 +266,8 @@ export default function ClaimDetailPage({ params }: { params: Promise<{ id: stri
   if (!claim) {
     return (
       <AppLayout title="Claim"><div className="flex flex-col items-center py-20">
-        <p className="text-[#64748B] mb-4">Claim not found</p>
+        <p className="text-[#64748B] mb-4">{loadError || 'Claim not found'}</p>
+        {loadError.includes('session') && <button onClick={() => router.push('/login')} className="text-[#2563EB] hover:underline text-sm mb-3">Sign in again</button>}
         <button onClick={() => router.back()} className="text-[#2563EB] hover:underline text-sm">← Go back</button>
       </div></AppLayout>
     );
