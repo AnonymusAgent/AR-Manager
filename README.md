@@ -98,8 +98,7 @@ cd ar-management-system
 npm install
 
 # 3. Configure environment
-cp .env.example .env
-# Edit .env with your database URL and SMTP settings
+# Create .env.local with DATABASE_URL and JWT_SECRET (see Environment Variables below)
 
 # 4. Push database schema
 npx drizzle-kit push
@@ -113,8 +112,8 @@ npm start
 
 ```env
 # Required
-DATABASE_URL=postgresql://postgres:postgres@127.0.0.1:5432/app_db
-JWT_SECRET=your-secure-secret-key
+DATABASE_URL=your-postgresql-connection-string
+JWT_SECRET=your-secure-random-secret
 
 # Optional — Email notifications
 SMTP_HOST=smtp.example.com
