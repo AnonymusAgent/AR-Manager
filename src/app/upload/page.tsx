@@ -104,6 +104,26 @@ export default function UploadPage() {
               <p className="text-xs text-[#94A3B8] mt-4">Supported: XLSX, XLS, CSV, PDF</p>
             </div>
 
+            <div className="mt-5 border-t border-[#E5E7EB] pt-4">
+              <h3 className="text-sm font-semibold text-slate-800">Accepted data and columns</h3>
+              <p className="mt-1 text-xs leading-relaxed text-slate-500">
+                Excel and CSV files need one header row. Each claim row must include at least one identifier: claim number, account number, or patient name. Excel imports use the first worksheet.
+              </p>
+              <dl className="mt-3 grid grid-cols-1 gap-x-6 gap-y-2 text-xs sm:grid-cols-2">
+                <div><dt className="font-semibold text-slate-700">Claim number</dt><dd className="text-slate-500">Claim number, claim no, claim #, claim ID</dd></div>
+                <div><dt className="font-semibold text-slate-700">Account number</dt><dd className="text-slate-500">Account number, account no, account #, patient account</dd></div>
+                <div><dt className="font-semibold text-slate-700">Patient name</dt><dd className="text-slate-500">Patient name, patient, member name, subscriber name</dd></div>
+                <div><dt className="font-semibold text-slate-700">Service date</dt><dd className="text-slate-500">Date of service, DOS, service date</dd></div>
+                <div><dt className="font-semibold text-slate-700">Procedure and provider</dt><dd className="text-slate-500">CPT/HCPCS, procedure code, provider, physician, doctor</dd></div>
+                <div><dt className="font-semibold text-slate-700">Insurance and payer</dt><dd className="text-slate-500">Insurance, carrier, insurance company, payer/payor</dd></div>
+                <div><dt className="font-semibold text-slate-700">Amounts</dt><dd className="text-slate-500">Billed, paid, and balance; numeric values with optional $ and commas</dd></div>
+                <div><dt className="font-semibold text-slate-700">Other columns</dt><dd className="text-slate-500">Unrecognized columns are retained as additional data</dd></div>
+              </dl>
+              <p className="mt-3 text-xs text-slate-500">
+                Recommended dates: YYYY-MM-DD or MM/DD/YYYY. Imported claims start with status New; status values in the file are not applied. PDFs must contain readable, labeled text.
+              </p>
+            </div>
+
             {files.length > 0 && (
               <div className="mt-6">
                 <h4 className="text-sm font-medium text-slate-700 mb-3">Selected Files ({files.length})</h4>

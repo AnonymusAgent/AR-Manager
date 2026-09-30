@@ -53,12 +53,25 @@ export async function POST(request: NextRequest) {
       const buffer = Buffer.from(await file.arrayBuffer());
       let parsedData: import('@/lib/file-parser').ParsedClaimData[] = [];
 
-      if (fileType === 'csv') {
-        parsedData = parseCSVContent(buffer.toString('utf-8'));
-      } else if (fileType === 'xlsx' || fileType === 'xls') {
-        parsedData = parseExcelBuffer(buffer);
-      } else if (fileType === 'pdf') {
-        parsedData = parsePDFText(buffer.toString('utf-8'));
+      try {
+        if (fileType === 'csv') {
+          parsedData = parseCSVContent(buffer.toString('utf-8'));
+        } else if (fileType === 'xlsx' || fileType === 'xls') {
+          parsedData = parseExcelBuffer(buffer);
+        } else if (fileType === 'pdf') {
+          parsedData = parsePDFText(buffer.toString('utf-8'));
+        }
+      } catch (parseError) {
+        console.error('File parsing error:', parseError);
+        await db.update(uploadedFiles).set({
+          status: 'error',
+          errorMessage: 'File parsing failed.',
+        }).where(eq(uploadedFiles.id, uploadRecord.id));
+
+        const errorMessage = fileType === 'xlsx' || fileType === 'xls'
+          ? 'This Excel file is invalid or incomplete. Open it in Excel, save a fresh copy, and try again.'
+          : 'This file could not be read. Check that it is valid and try again.';
+        return NextResponse.json({ error: errorMessage }, { status: 400 });
       }
 
       // Insert claims with practice and user assignment
@@ -110,11 +123,11 @@ export async function POST(request: NextRequest) {
       });
 
       return NextResponse.json({ success: true, uploadId: uploadRecord.id, recordsProcessed: parsedData.length });
-    } catch (parseError) {
+    } catch (processingError) {
       await db.update(uploadedFiles).set({
-        status: 'error', errorMessage: parseError instanceof Error ? parseError.message : 'Unknown error',
+        status: 'error', errorMessage: 'Upload processing failed.',
       }).where(eq(uploadedFiles.id, uploadRecord.id));
-      throw parseError;
+      throw processingError;
     }
   } catch (error) {
     console.error('Upload error:', error);
