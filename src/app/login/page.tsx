@@ -5,7 +5,24 @@ import { Input } from '@/components/ui/Input';
 import { Button } from '@/components/ui/Button';
 import { Card } from '@/components/ui/Card';
 import { BrandMark } from '@/components/ui/BrandMark';
-import { AlertCircle } from 'lucide-react';
+import { AlertCircle, Timer, LogOut } from 'lucide-react';
+import { clearStoredSessionSecurity } from '@/lib/session-security';
+
+const SESSION_ENDED_NOTICES: Record<
+  string,
+  { title: string; body: string; icon: React.ComponentType<{ className?: string }> }
+> = {
+  inactivity: {
+    title: 'Session Locked',
+    body: 'You were signed out automatically after a period of inactivity. Sign in again to continue.',
+    icon: Timer,
+  },
+  closed: {
+    title: 'Session Ended',
+    body: 'You were signed out because this browser tab was closed. Sign in again to continue.',
+    icon: LogOut,
+  },
+};
 
 export default function LoginPage() {
   const [email, setEmail] = useState('');
@@ -14,6 +31,28 @@ export default function LoginPage() {
   const [loading, setLoading] = useState(false);
   const [seeding, setSeeding] = useState(false);
   const [checking, setChecking] = useState(true);
+  const [sessionNotice, setSessionNotice] = useState<{
+    title: string;
+    body: string;
+    icon: React.ComponentType<{ className?: string }>;
+  } | null>(null);
+
+  // Surface why the session ended, then drop the stale cached settings.
+  useEffect(() => {
+    const reason = new URLSearchParams(window.location.search).get('reason');
+    if (!reason) return;
+    const notice = SESSION_ENDED_NOTICES[reason];
+    if (!notice) return;
+
+    clearStoredSessionSecurity();
+
+    const url = new URL(window.location.href);
+    url.searchParams.delete('reason');
+    window.history.replaceState({}, '', url.toString());
+
+    const timer = window.setTimeout(() => setSessionNotice(notice), 0);
+    return () => window.clearTimeout(timer);
+  }, []);
 
   // On mount, check if already logged in
   useEffect(() => {
@@ -127,6 +166,16 @@ export default function LoginPage() {
             <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg flex items-center gap-2 text-red-700">
               <AlertCircle className="w-5 h-5 flex-shrink-0" />
               <span className="text-sm">{error}</span>
+            </div>
+          )}
+
+          {sessionNotice && (
+            <div className="mb-4 p-3 bg-amber-50 border border-amber-200 rounded-lg flex items-start gap-2 text-amber-800">
+              <sessionNotice.icon className="w-5 h-5 flex-shrink-0 mt-0.5" />
+              <div>
+                <p className="text-sm font-semibold">{sessionNotice.title}</p>
+                <p className="text-sm">{sessionNotice.body}</p>
+              </div>
             </div>
           )}
 

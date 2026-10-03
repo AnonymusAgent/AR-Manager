@@ -30,7 +30,17 @@ import {
   Smartphone,
   Sliders,
   Award,
+  ShieldCheck,
 } from 'lucide-react';
+import {
+  SESSION_INACTIVITY_OPTIONS,
+  WARN_BEFORE_LOCK_OPTIONS,
+  DEFAULT_INACTIVITY_TIMEOUT_MINUTES,
+  DEFAULT_LOGOUT_ON_CLOSE,
+  DEFAULT_WARN_BEFORE_LOCK_SECONDS,
+  resolveSessionSecurity,
+  writeStoredSessionSecurity,
+} from '@/lib/session-security';
 
 interface UserProfile {
   id: string;
@@ -52,6 +62,11 @@ interface UserProfile {
     timezone?: string;
     pageSize?: number;
     avatarColor?: string;
+    sessionSecurity?: {
+      inactivityTimeoutMinutes?: number;
+      logoutOnClose?: boolean;
+      warnBeforeLockSeconds?: number;
+    };
   } | null;
   createdAt: string;
   updatedAt: string;
@@ -161,6 +176,15 @@ function ProfileContent() {
   const [timezone, setTimezone] = useState('America/New_York (EST)');
   const [pageSize, setPageSize] = useState(25);
 
+  // Form states for Session Security
+  const [sessionTimeoutMinutes, setSessionTimeoutMinutes] = useState(
+    DEFAULT_INACTIVITY_TIMEOUT_MINUTES
+  );
+  const [logoutOnClose, setLogoutOnClose] = useState(DEFAULT_LOGOUT_ON_CLOSE);
+  const [warnBeforeLockSeconds, setWarnBeforeLockSeconds] = useState(
+    DEFAULT_WARN_BEFORE_LOCK_SECONDS
+  );
+
   const setActiveTab = (tab: ProfileTab) => {
     setStatusMessage(null);
     router.replace(`/profile?tab=${tab}`, { scroll: false });
@@ -188,6 +212,10 @@ function ProfileContent() {
       if (prefs.avatarColor && AVATAR_COLOR_PRESETS.includes(prefs.avatarColor)) {
         setAvatarColor(prefs.avatarColor);
       }
+      const security = resolveSessionSecurity(prefs.sessionSecurity);
+      setSessionTimeoutMinutes(security.inactivityTimeoutMinutes);
+      setLogoutOnClose(security.logoutOnClose);
+      setWarnBeforeLockSeconds(security.warnBeforeLockSeconds);
     }
   };
 
@@ -273,6 +301,11 @@ function ProfileContent() {
     e.preventDefault();
     setSaving(true);
     setStatusMessage(null);
+    const nextSecurity = resolveSessionSecurity({
+      inactivityTimeoutMinutes: sessionTimeoutMinutes,
+      logoutOnClose,
+      warnBeforeLockSeconds,
+    });
     try {
       const res = await fetch('/api/profile', {
         method: 'PATCH',
@@ -290,11 +323,13 @@ function ProfileContent() {
             dateFormat,
             timezone,
             pageSize,
+            sessionSecurity: nextSecurity,
           },
         }),
       });
       const result = await res.json();
       if (!res.ok) throw new Error(result.error || 'Failed to save preferences');
+      writeStoredSessionSecurity(nextSecurity);
       setStatusMessage({ type: 'success', text: 'Application preferences saved.' });
       fetchProfile();
     } catch (err: any) {
@@ -1014,6 +1049,106 @@ function ProfileContent() {
                     <option value={50}>50 rows per page</option>
                     <option value={100}>100 rows per page</option>
                   </select>
+                </div>
+              </div>
+
+              <div className="pt-4 flex justify-end">
+                <Button type="submit" loading={saving}>
+                  Save Preferences
+                </Button>
+              </div>
+            </Card>
+
+            <Card>
+              <CardHeader
+                title="Session & Security"
+                subtitle="Control automatic sign-out to protect patient and billing data when you step away or close the application."
+              />
+              <div className="space-y-4">
+                <div className="flex items-center justify-between py-2 border-b border-[#E5E7EB]">
+                  <div>
+                    <p className="text-sm font-medium text-slate-900">Log out when closing the tab or browser</p>
+                    <p className="text-xs text-slate-500">
+                      Immediately ends your server session when this browser tab is closed or refreshed.
+                    </p>
+                  </div>
+                  <input
+                    type="checkbox"
+                    checked={logoutOnClose}
+                    onChange={(e) => setLogoutOnClose(e.target.checked)}
+                    className="w-4 h-4 text-[#2563EB] rounded border-gray-300 focus:ring-[#2563EB]"
+                  />
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-2">
+                  <div>
+                    <label className="block text-sm font-medium text-slate-700 mb-1">
+                      Auto-lock after inactivity
+                    </label>
+                    <select
+                      value={sessionTimeoutMinutes}
+                      onChange={(e) => {
+                        const nextMinutes = Number(e.target.value);
+                        setSessionTimeoutMinutes(nextMinutes);
+                        if (warnBeforeLockSeconds >= nextMinutes * 60) {
+                          setWarnBeforeLockSeconds(
+                            nextMinutes * 60 <= 30 ? 15 : nextMinutes * 60 / 2
+                          );
+                        }
+                      }}
+                      className="w-full px-3.5 py-2.5 rounded-lg border border-[#E5E7EB] bg-white text-sm focus:outline-none focus:ring-2 focus:ring-[#2563EB]/20 focus:border-[#2563EB]"
+                    >
+                      {SESSION_INACTIVITY_OPTIONS.map((option) => (
+                        <option key={option.value} value={option.value}>
+                          {option.label}
+                        </option>
+                      ))}
+                    </select>
+                    <p className="text-xs text-slate-500 mt-1">
+                      Signing out automatically after {sessionTimeoutMinutes} minute
+                      {sessionTimeoutMinutes === 1 ? '' : 's'} without activity.
+                    </p>
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-slate-700 mb-1">
+                      Warn me before signing out
+                    </label>
+                    <select
+                      value={warnBeforeLockSeconds}
+                      onChange={(e) => setWarnBeforeLockSeconds(Number(e.target.value))}
+                      disabled={sessionTimeoutMinutes * 60 <= warnBeforeLockSeconds}
+                      className="w-full px-3.5 py-2.5 rounded-lg border border-[#E5E7EB] bg-white text-sm focus:outline-none focus:ring-2 focus:ring-[#2563EB]/20 focus:border-[#2563EB] disabled:bg-slate-100 disabled:text-slate-400"
+                    >
+                      {WARN_BEFORE_LOCK_OPTIONS.filter(
+                        (option) => option.value < sessionTimeoutMinutes * 60
+                      ).map((option) => (
+                        <option key={option.value} value={option.value}>
+                          {option.label} before
+                        </option>
+                      ))}
+                    </select>
+                    <p className="text-xs text-slate-500 mt-1">
+                      {sessionTimeoutMinutes * 60 <= warnBeforeLockSeconds
+                        ? 'Warning time must be shorter than the inactivity timeout.'
+                        : 'A countdown dialog appears before you are signed out.'}
+                    </p>
+                  </div>
+                </div>
+
+                <div className="p-4 rounded-xl bg-blue-50 border border-blue-200 flex items-start gap-3">
+                  <ShieldCheck className="w-5 h-5 text-[#2563EB] flex-shrink-0 mt-0.5" />
+                  <div className="text-xs text-slate-600 space-y-1">
+                    <p className="font-semibold text-slate-800">HIPAA automatic logoff</p>
+                    <p>
+                      Automatic sign-out events are written to the compliance audit log with the trigger
+                      (inactivity or closed session) for review.
+                    </p>
+                    <p>
+                      Activity is detected from mouse, keyboard, scroll, and touch input. Switching browser
+                      tabs does not reset the timer.
+                    </p>
+                  </div>
                 </div>
               </div>
 

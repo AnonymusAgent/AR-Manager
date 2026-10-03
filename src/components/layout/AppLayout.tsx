@@ -4,6 +4,8 @@ import React, { useState, useEffect } from 'react';
 import { Sidebar } from './Sidebar';
 import { Header } from './Header';
 import { MedicalLoadingScreen } from '@/components/ui/MedicalLoader';
+import SessionGuard from '@/components/auth/SessionGuard';
+import { clearStoredSessionSecurity } from '@/lib/session-security';
 
 interface User { id: string; email: string; firstName: string; lastName: string; role: string; }
 interface AppLayoutProps { children: React.ReactNode; title?: string; }
@@ -30,6 +32,7 @@ export function AppLayout({ children, title }: AppLayoutProps) {
 
   const handleLogout = async () => {
     try { await fetch('/api/auth/logout', { method: 'POST', credentials: 'include' }); } catch {}
+    clearStoredSessionSecurity();
     window.location.replace('/login');
   };
 
@@ -66,6 +69,7 @@ export function AppLayout({ children, title }: AppLayoutProps) {
           </footer>
         </div>
       </div>
+      <SessionGuard />
     </div>
   );
 }

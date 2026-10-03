@@ -10,6 +10,16 @@ export async function POST(request: NextRequest) {
     const cookieStore = await cookies();
     const token = cookieStore.get('session')?.value;
 
+    let reason: string | null = request.nextUrl.searchParams.get('reason');
+    if (!reason) {
+      try {
+        const body = await request.json();
+        if (body && typeof body.reason === 'string') reason = body.reason;
+      } catch {
+        // sendBeacon / keepalive requests may have no parsable body
+      }
+    }
+
     if (token) {
       await logout(token);
     }
@@ -20,6 +30,7 @@ export async function POST(request: NextRequest) {
         action: AUDIT_ACTIONS.USER_LOGOUT,
         entityType: 'user',
         entityId: user.id,
+        ...(reason ? { newValue: { reason } } : {}),
         ipAddress: request.headers.get('x-forwarded-for') || 'unknown',
         userAgent: request.headers.get('user-agent') || undefined,
       });

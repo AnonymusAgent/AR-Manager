@@ -17,6 +17,11 @@ import {
   isSupervisorOrAbove,
 } from '@/lib/auth';
 import { createAuditLog, AUDIT_ACTIONS } from '@/lib/audit';
+import {
+  resolveSessionSecurity,
+  resolveInactivityTimeout,
+  resolveWarnBeforeLock,
+} from '@/lib/session-security';
 
 const PERMISSION_DESCRIPTIONS: Record<string, { label: string; description: string; category: string }> = {
   upload_files: {
@@ -168,6 +173,19 @@ function sanitizePreferences(
 
   const mergedNotifs = { ...existingNotifs, ...incomingNotifs };
 
+  const existingSecurity =
+    base.sessionSecurity && typeof base.sessionSecurity === 'object' && !Array.isArray(base.sessionSecurity)
+      ? (base.sessionSecurity as Record<string, unknown>)
+      : {};
+
+  const incomingSecurity =
+    next.sessionSecurity && typeof next.sessionSecurity === 'object' && !Array.isArray(next.sessionSecurity)
+      ? (next.sessionSecurity as Record<string, unknown>)
+      : {};
+
+  const mergedSecurity = { ...existingSecurity, ...incomingSecurity };
+  const sessionSecurity = resolveSessionSecurity(mergedSecurity);
+
   return {
     ...base,
     ...next,
@@ -176,6 +194,11 @@ function sanitizePreferences(
       assignments: Boolean(mergedNotifs.assignments ?? true),
       signoffs: Boolean(mergedNotifs.signoffs ?? true),
       statusUpdates: Boolean(mergedNotifs.statusUpdates ?? true),
+    },
+    sessionSecurity: {
+      inactivityTimeoutMinutes: resolveInactivityTimeout(mergedSecurity.inactivityTimeoutMinutes),
+      logoutOnClose: sessionSecurity.logoutOnClose,
+      warnBeforeLockSeconds: resolveWarnBeforeLock(mergedSecurity.warnBeforeLockSeconds),
     },
     dateFormat: pickOneOf(next.dateFormat ?? base.dateFormat, DATE_FORMATS, 'MM/DD/YYYY'),
     timezone: pickOneOf(next.timezone ?? base.timezone, TIMEZONES, 'America/New_York (EST)'),
@@ -332,6 +355,7 @@ export async function GET() {
     return NextResponse.json({
       user: {
         ...fullUser,
+        preferences: sanitizePreferences(fullUser.preferences, null),
         roleInfo: ROLE_INFO[fullUser.role as UserRole] || {
           title: fullUser.role,
           description: '',
