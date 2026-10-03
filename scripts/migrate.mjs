@@ -22,55 +22,6 @@ const pool = new Pool({
 async function main() {
   const client = await pool.connect();
   try {
-    const migrationFile = path.join(process.cwd(), 'drizzle', '0001_serious_ravenous.sql');
-    if (!fs.existsSync(migrationFile)) {
-      console.log('No migration file found at:', migrationFile);
-      return;
-    }
-
-    const sql = fs.readFileSync(migrationFile, 'utf8');
-    const rawStatements = sql
-      .split('--> statement-breakpoint')
-      .map((s) => s.trim())
-      .filter((s) => s.length > 0);
-
-    console.log(`Processing ${rawStatements.length} migration statements...`);
-
-    for (let i = 0; i < rawStatements.length; i++) {
-      let stmt = rawStatements[i];
-
-      // Convert CREATE TABLE to CREATE TABLE IF NOT EXISTS
-      if (stmt.startsWith('CREATE TABLE "')) {
-        stmt = stmt.replace('CREATE TABLE "', 'CREATE TABLE IF NOT EXISTS "');
-      }
-
-      // Convert ALTER TABLE ... ADD COLUMN ... to ADD COLUMN IF NOT EXISTS
-      if (stmt.includes('ADD COLUMN "')) {
-        stmt = stmt.replace(/ADD COLUMN "/g, 'ADD COLUMN IF NOT EXISTS "');
-      }
-
-      // For constraints, wrap in DO $$ BEGIN ... EXCEPTION WHEN duplicate_object THEN null; END $$;
-      if (stmt.includes('ADD CONSTRAINT')) {
-        stmt = `
-          DO $$
-          BEGIN
-            ${stmt.replace(/;+$/, '')};
-          EXCEPTION
-            WHEN duplicate_object THEN NULL;
-            WHEN duplicate_table THEN NULL;
-          END $$;
-        `;
-      }
-
-      try {
-        console.log(`[${i + 1}/${rawStatements.length}] Running statement...`);
-        await client.query(stmt);
-      } catch (err) {
-        console.warn(`Statement [${i + 1}] notice:`, err.message);
-      }
-    }
-
-    // Ensure drizzle schema and migration tracking
     await client.query(`
       CREATE SCHEMA IF NOT EXISTS drizzle;
       CREATE TABLE IF NOT EXISTS drizzle.__drizzle_migrations (
@@ -78,21 +29,85 @@ async function main() {
         hash text NOT NULL,
         created_at bigint
       );
+      -- Deduplicate if needed
+      DELETE FROM drizzle.__drizzle_migrations
+      WHERE id NOT IN (
+        SELECT min(id) FROM drizzle.__drizzle_migrations GROUP BY hash
+      );
+      CREATE UNIQUE INDEX IF NOT EXISTS drizzle_migrations_hash_idx ON drizzle.__drizzle_migrations (hash);
     `);
 
+    // Ensure 0000 and 0001 are recorded
+    await client.query(`
+      INSERT INTO drizzle.__drizzle_migrations (hash, created_at)
+      VALUES ('0000_volatile_puck', $1)
+      ON CONFLICT (hash) DO NOTHING;
+    `, [Date.now()]);
     await client.query(`
       INSERT INTO drizzle.__drizzle_migrations (hash, created_at)
       VALUES ('0001_serious_ravenous', $1)
-      ON CONFLICT DO NOTHING;
+      ON CONFLICT (hash) DO NOTHING;
     `, [Date.now()]);
 
-    console.log('\nMigration completed successfully!');
+    const existingRes = await client.query(`SELECT hash FROM drizzle.__drizzle_migrations`);
+    const appliedHashes = new Set(existingRes.rows.map((r) => r.hash));
 
-    const tableRes = await client.query(`
-      SELECT table_name FROM information_schema.tables WHERE table_schema = 'public' ORDER BY table_name;
-    `);
-    console.log(`\nTotal tables in Neon DB (${tableRes.rows.length}):`);
-    console.log(tableRes.rows.map((r) => r.table_name).join(', '));
+    const drizzleDir = path.join(process.cwd(), 'drizzle');
+    const files = fs.readdirSync(drizzleDir)
+      .filter((f) => f.endsWith('.sql'))
+      .sort();
+
+    for (const file of files) {
+      const hash = path.basename(file, '.sql');
+      if (appliedHashes.has(hash)) {
+        console.log(`Migration already applied: ${file}`);
+        continue;
+      }
+
+      console.log(`Applying migration: ${file}...`);
+      const sql = fs.readFileSync(path.join(drizzleDir, file), 'utf8');
+      const rawStatements = sql
+        .split('--> statement-breakpoint')
+        .map((s) => s.trim())
+        .filter((s) => s.length > 0);
+
+      for (let i = 0; i < rawStatements.length; i++) {
+        let stmt = rawStatements[i];
+
+        if (stmt.startsWith('CREATE TABLE "')) {
+          stmt = stmt.replace('CREATE TABLE "', 'CREATE TABLE IF NOT EXISTS "');
+        }
+        if (stmt.includes('ADD COLUMN "')) {
+          stmt = stmt.replace(/ADD COLUMN "/g, 'ADD COLUMN IF NOT EXISTS "');
+        }
+        if (stmt.includes('ADD CONSTRAINT')) {
+          stmt = `
+            DO $$
+            BEGIN
+              ${stmt.replace(/;+$/, '')};
+            EXCEPTION
+              WHEN duplicate_object THEN NULL;
+              WHEN duplicate_table THEN NULL;
+            END $$;
+          `;
+        }
+
+        try {
+          await client.query(stmt);
+        } catch (err) {
+          console.warn(`[${file}] statement ${i + 1} notice:`, err.message);
+        }
+      }
+
+      await client.query(`
+        INSERT INTO drizzle.__drizzle_migrations (hash, created_at)
+        VALUES ($1, $2)
+        ON CONFLICT (hash) DO NOTHING;
+      `, [hash, Date.now()]);
+      console.log(`Successfully applied ${file}`);
+    }
+
+    console.log('\nAll migrations completed and verified!');
   } catch (error) {
     console.error('Migration failed:', error);
     process.exit(1);

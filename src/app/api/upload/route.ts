@@ -1,136 +1,278 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/db';
-import { uploadedFiles, claims, practices } from '@/db/schema';
+import { uploadedFiles, claims, practices, users } from '@/db/schema';
 import { eq } from 'drizzle-orm';
-import { getCurrentUser, canUploadFiles } from '@/lib/auth';
+import { getCurrentUser, canUploadFiles, canAssignClaims } from '@/lib/auth';
 import { createAuditLog, AUDIT_ACTIONS } from '@/lib/audit';
-import { parseExcelBuffer, parseCSVContent, parsePDFText } from '@/lib/file-parser';
+import { parseWorkbookWithMapping } from '@/lib/file-parser';
 import { createNotification } from '@/lib/notifications';
+
+const BATCH_SIZE = 100; // Safe batch size for PostgreSQL parameters
 
 export async function POST(request: NextRequest) {
   try {
     const user = await getCurrentUser();
-    if (!user || !canUploadFiles(user.role)) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 403 });
+    if (!user) {
+      return NextResponse.json({ error: 'Authentication required' }, { status: 401 });
+    }
+
+    if (!canUploadFiles(user.role)) {
+      return NextResponse.json(
+        {
+          error:
+            'You do not have permission to upload AR files. Required role: Administrator, Supervisor, Manager, or Senior Lead.',
+        },
+        { status: 403 }
+      );
     }
 
     const formData = await request.formData();
-    const file = formData.get('file') as File;
-    const practiceId = formData.get('practiceId') as string;
-    const provider = formData.get('provider') as string;
-    const assignedTo = formData.get('assignedTo') as string;
+    const file = formData.get('file') as File | null;
+    const practiceId = (formData.get('practiceId') as string) || '';
+    const provider = (formData.get('provider') as string) || '';
+    const assignedTo = (formData.get('assignedTo') as string) || '';
+    const sheetName = (formData.get('sheetName') as string) || '';
+    const headerRowIndexStr = formData.get('headerRowIndex') as string | null;
+    const headerRowIndex = headerRowIndexStr ? parseInt(headerRowIndexStr, 10) : 0;
+    const mappingRaw = formData.get('columnMapping') as string | null;
 
-    if (!file) return NextResponse.json({ error: 'No file provided' }, { status: 400 });
+    if (!file) {
+      return NextResponse.json({ error: 'No file provided for upload.' }, { status: 400 });
+    }
 
-    // Require practice and assigned user (unless admin override)
+    // Require practice unless admin
     if (!practiceId && user.role !== 'administrator') {
-      return NextResponse.json({ error: 'Practice selection is required for AR upload' }, { status: 400 });
-    }
-    if (!assignedTo && user.role !== 'administrator') {
-      return NextResponse.json({ error: 'Assigned user is required for AR upload' }, { status: 400 });
+      return NextResponse.json(
+        { error: 'Practice selection is required for importing AR claims.' },
+        { status: 400 }
+      );
     }
 
-    // Validate practice exists
+    // Validate practice exists if provided
     if (practiceId) {
-      const [practice] = await db.select().from(practices).where(eq(practices.id, practiceId)).limit(1);
-      if (!practice) return NextResponse.json({ error: 'Selected practice not found' }, { status: 400 });
+      const [practice] = await db
+        .select({ id: practices.id, name: practices.name })
+        .from(practices)
+        .where(eq(practices.id, practiceId))
+        .limit(1);
+
+      if (!practice) {
+        return NextResponse.json(
+          { error: 'The selected practice could not be found.' },
+          { status: 400 }
+        );
+      }
+    }
+
+    // Validate assigned user if provided
+    if (assignedTo) {
+      if (!canAssignClaims(user.role)) {
+        return NextResponse.json(
+          { error: 'Your role does not have permission to assign claims to other users.' },
+          { status: 403 }
+        );
+      }
+
+      const [assignedUserRecord] = await db
+        .select({ id: users.id, firstName: users.firstName, lastName: users.lastName })
+        .from(users)
+        .where(eq(users.id, assignedTo))
+        .limit(1);
+
+      if (!assignedUserRecord) {
+        return NextResponse.json(
+          { error: 'The selected assignee could not be found in active users.' },
+          { status: 400 }
+        );
+      }
     }
 
     const fileName = file.name;
     const fileType = fileName.split('.').pop()?.toLowerCase() || '';
     const fileSize = file.size;
 
-    if (!['xlsx', 'xls', 'csv', 'pdf'].includes(fileType)) {
-      return NextResponse.json({ error: 'Invalid file type. Supported: xlsx, xls, csv, pdf' }, { status: 400 });
+    if (!['xlsx', 'xls', 'csv'].includes(fileType)) {
+      return NextResponse.json(
+        { error: 'Invalid file type. Supported formats: .xlsx, .xls, .csv' },
+        { status: 400 }
+      );
     }
 
-    // Create upload record
-    const [uploadRecord] = await db.insert(uploadedFiles).values({
-      fileName, fileType, fileSize, uploadedBy: user.id, status: 'processing',
-    }).returning();
+    let columnMapping: Record<string, string> = {};
+    if (mappingRaw) {
+      try {
+        columnMapping = JSON.parse(mappingRaw);
+      } catch {
+        columnMapping = {};
+      }
+    }
+
+    // Create initial upload record in database
+    const [uploadRecord] = await db
+      .insert(uploadedFiles)
+      .values({
+        fileName,
+        fileType,
+        fileSize,
+        uploadedBy: user.id,
+        status: 'processing',
+      })
+      .returning();
 
     try {
       const buffer = Buffer.from(await file.arrayBuffer());
-      let parsedData: import('@/lib/file-parser').ParsedClaimData[] = [];
 
+      // Parse with mappings
+      let parseResult: ReturnType<typeof parseWorkbookWithMapping>;
       try {
-        if (fileType === 'csv') {
-          parsedData = parseCSVContent(buffer.toString('utf-8'));
-        } else if (fileType === 'xlsx' || fileType === 'xls') {
-          parsedData = parseExcelBuffer(buffer);
-        } else if (fileType === 'pdf') {
-          parsedData = parsePDFText(buffer.toString('utf-8'));
-        }
-      } catch (parseError) {
-        console.error('File parsing error:', parseError);
-        await db.update(uploadedFiles).set({
-          status: 'error',
-          errorMessage: 'File parsing failed.',
-        }).where(eq(uploadedFiles.id, uploadRecord.id));
+        parseResult = parseWorkbookWithMapping(buffer, {
+          sheetName: sheetName || undefined,
+          headerRowIndex,
+          columnMapping,
+        });
+      } catch (parseError: any) {
+        await db
+          .update(uploadedFiles)
+          .set({
+            status: 'error',
+            errorMessage: parseError.message || 'File parsing failed.',
+          })
+          .where(eq(uploadedFiles.id, uploadRecord.id));
 
-        const errorMessage = fileType === 'xlsx' || fileType === 'xls'
-          ? 'This Excel file is invalid or incomplete. Open it in Excel, save a fresh copy, and try again.'
-          : 'This file could not be read. Check that it is valid and try again.';
-        return NextResponse.json({ error: errorMessage }, { status: 400 });
+        return NextResponse.json(
+          {
+            error:
+              parseError.message ||
+              'This Excel file could not be parsed. Please check that the file is not corrupted.',
+          },
+          { status: 400 }
+        );
       }
 
-      // Insert claims with practice and user assignment
-      const claimsToInsert = parsedData.map((data) => ({
-        claimNumber: data.claimNumber || `CLM-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
-        accountNumber: data.accountNumber,
-        patientName: data.patientName,
-        dateOfService: data.dateOfService,
-        cptCodes: data.cptCodes,
-        provider: provider || data.provider,
-        insurance: data.insurance,
-        payer: data.payer,
-        billedAmount: data.billedAmount,
-        paidAmount: data.paidAmount,
-        balance: data.balance,
+      const { records, stats, warnings } = parseResult;
+
+      if (records.length === 0) {
+        await db
+          .update(uploadedFiles)
+          .set({
+            status: 'error',
+            errorMessage: 'No valid claim records identified in worksheet.',
+          })
+          .where(eq(uploadedFiles.id, uploadRecord.id));
+
+        return NextResponse.json(
+          {
+            error:
+              'No valid claim records could be extracted from the file. Please review your column mappings to ensure Claim Number, Patient Name, or Billed Amount are correctly mapped.',
+          },
+          { status: 400 }
+        );
+      }
+
+      // Prepare claim records for database insertion
+      const claimsToInsert = records.map((data) => ({
+        claimNumber: data.claimNumber!,
+        accountNumber: data.accountNumber || null,
+        patientName: data.patientName || null,
+        dateOfService: data.dateOfService || null,
+        cptCodes: data.cptCodes || null,
+        diagnosisCode: data.diagnosisCode || null,
+        location: data.location || null,
+        provider: provider || data.provider || null,
+        insurance: data.insurance || null,
+        payer: data.payer || null,
+        billedAmount: data.billedAmount || '0.00',
+        paidAmount: data.paidAmount || '0.00',
+        balance: data.balance || data.billedAmount || '0.00',
         status: 'new' as const,
         workflowStatus: 'unworked',
-        practiceId: practiceId || undefined,
+        practiceId: practiceId || null,
         uploadedFileId: uploadRecord.id,
-        assignedTo: assignedTo || undefined,
-        assignedBy: user.id,
-        assignedAt: assignedTo ? new Date() : undefined,
-        additionalData: data.additionalData,
+        assignedTo: assignedTo || null,
+        assignedBy: assignedTo ? user.id : null,
+        assignedAt: assignedTo ? new Date() : null,
+        additionalData: data.additionalData || null,
       }));
 
-      if (claimsToInsert.length > 0) {
-        await db.insert(claims).values(claimsToInsert);
+      // Insert in chunks to guarantee safety with large files
+      let insertedCount = 0;
+      for (let i = 0; i < claimsToInsert.length; i += BATCH_SIZE) {
+        const batch = claimsToInsert.slice(i, i + BATCH_SIZE);
+        await db.insert(claims).values(batch);
+        insertedCount += batch.length;
       }
 
-      // Update upload record
-      await db.update(uploadedFiles).set({
-        status: 'completed', totalRecords: parsedData.length, processedRecords: parsedData.length,
-      }).where(eq(uploadedFiles.id, uploadRecord.id));
+      // Update upload record as completed
+      await db
+        .update(uploadedFiles)
+        .set({
+          status: 'completed',
+          totalRecords: stats.totalRows,
+          processedRecords: insertedCount,
+        })
+        .where(eq(uploadedFiles.id, uploadRecord.id));
 
-      // Notify assigned user
+      // Notify assigned user if assigned
       if (assignedTo) {
         await createNotification({
           userId: assignedTo,
           type: 'new_assignment',
-          title: 'New AR Assigned',
-          message: `${parsedData.length} claim(s) have been assigned to you`,
+          title: 'New AR Claims Assigned',
+          message: `${insertedCount} claim(s) from "${fileName}" have been assigned to your work queue.`,
         });
       }
 
+      // Create audit log
       await createAuditLog({
-        userId: user.id, action: AUDIT_ACTIONS.FILE_UPLOADED, entityType: 'uploadedFile',
+        userId: user.id,
+        action: AUDIT_ACTIONS.FILE_UPLOADED,
+        entityType: 'uploadedFile',
         entityId: uploadRecord.id,
-        newValue: { fileName, fileType, recordCount: parsedData.length, practiceId, assignedTo },
+        newValue: {
+          fileName,
+          fileType,
+          recordCount: insertedCount,
+          skippedRows: stats.skippedRows,
+          duplicatesInFile: stats.duplicatesInFile,
+          practiceId: practiceId || null,
+          assignedTo: assignedTo || null,
+        },
+        ipAddress: request.headers.get('x-forwarded-for') || '127.0.0.1',
+        userAgent: request.headers.get('user-agent') || undefined,
       });
 
-      return NextResponse.json({ success: true, uploadId: uploadRecord.id, recordsProcessed: parsedData.length });
-    } catch (processingError) {
-      await db.update(uploadedFiles).set({
-        status: 'error', errorMessage: 'Upload processing failed.',
-      }).where(eq(uploadedFiles.id, uploadRecord.id));
-      throw processingError;
+      return NextResponse.json({
+        success: true,
+        uploadId: uploadRecord.id,
+        recordsProcessed: insertedCount,
+        skippedRows: stats.skippedRows,
+        duplicatesInFile: stats.duplicatesInFile,
+        warnings,
+      });
+    } catch (processingError: any) {
+      console.error('Upload processing error:', processingError);
+      await db
+        .update(uploadedFiles)
+        .set({
+          status: 'error',
+          errorMessage: processingError.message || 'Upload processing failed.',
+        })
+        .where(eq(uploadedFiles.id, uploadRecord.id));
+
+      return NextResponse.json(
+        {
+          error:
+            processingError.message ||
+            'A database or server error occurred while inserting the claims. Please check your data formatting and try again.',
+        },
+        { status: 500 }
+      );
     }
-  } catch (error) {
-    console.error('Upload error:', error);
-    return NextResponse.json({ error: 'Failed to process file upload' }, { status: 500 });
+  } catch (error: any) {
+    console.error('Fatal upload error:', error);
+    return NextResponse.json(
+      { error: error.message || 'Failed to process file upload.' },
+      { status: 500 }
+    );
   }
 }

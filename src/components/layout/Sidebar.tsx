@@ -45,6 +45,7 @@ const navigationItems = [
   { href: '/denial-codes', icon: Briefcase, label: 'Denial Codes', roles: ALL_ROLES },
   { href: '/audit-logs', icon: History, label: 'Audit Logs', roles: ADMIN_ROLES },
   { href: '/notifications', icon: Bell, label: 'Notifications', roles: ALL_ROLES },
+  { href: '/profile', icon: UserCircle, label: 'My Profile & Settings', roles: ALL_ROLES },
 ];
 
 export function Sidebar({ user, collapsed, onToggle, onLogout }: SidebarProps) {
