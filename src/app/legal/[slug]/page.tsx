@@ -1,0 +1,12 @@
+import { MarketingShell } from '@/components/marketing/Marketing';
+import { notFound } from 'next/navigation';
+const DOCS: Record<string,{title:string;body:string[]}> = {
+ terms:{title:'Terms of Service',body:['Template — have this reviewed by counsel for your jurisdiction before launch.','You agree to use AR Manager only for lawful billing operations for organizations you are authorized to represent. Accounts are organization-scoped; you are responsible for your members and credentials. We may suspend accounts for abuse, non-payment after notice, or security risk, with reasons recorded.']},
+ privacy:{title:'Privacy Policy',body:['Template — review before launch.','We process account, organization and operational data to provide the service. We do not sell personal data and never send patient data to advertising or analytics platforms. Contact us for data export or deletion requests under applicable law.']},
+ subscription:{title:'Subscription & Cancellation Policy',body:['Template — review before launch.','Trials convert only when you subscribe. Paid subscriptions activate when our payment provider confirms payment. You may cancel anytime; access continues to the end of the paid period unless stated otherwise. Failed payments enter a grace period — data is not deleted for non-payment alone.']},
+ cookies:{title:'Cookie Policy',body:['We use an essential, HTTP-only session cookie required for sign-in. We do not use advertising cookies.']},
+ dpa:{title:'Data Processing Agreement (template)',body:['Template — requires legal review and, where applicable, signature.','AR Manager processes customer data only on documented instructions, applies access controls and audit logging, and will notify customers of confirmed security incidents without undue delay. Sub-processors must be listed here before launch.']},
+ baa:{title:'Business Associate Agreement (template)',body:['Template — requires legal review.','Where AR Manager acts as a business associate under HIPAA for a covered entity, the parties will execute this BAA before any PHI is processed. Technical safeguards alone do not constitute HIPAA compliance.']},
+};
+export default async function Page({params}:{params:Promise<{slug:string}>}){ const {slug}=await params; const doc=DOCS[slug]; if(!doc) notFound();
+ return <MarketingShell><section className="max-w-3xl mx-auto px-5 py-14"><h1 className="text-3xl font-extrabold text-[#0F2D52]">{doc.title}</h1>{doc.body.map(p=><p key={p.slice(0,20)} className="mt-4 text-slate-600">{p}</p>)}</section></MarketingShell>; }

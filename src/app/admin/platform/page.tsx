@@ -1,0 +1,12 @@
+'use client';
+import { useEffect, useState } from 'react';
+export default function Page(){ const [data,setData]=useState<any>(null); const [err,setErr]=useState(''); const [reason,setReason]=useState('');
+ useEffect(()=>{fetch('/api/platform/admin').then(async r=>{if(!r.ok) setErr('Forbidden — platform admin access (users.is_platform_admin) is required. This is separate from organization admin.'); else setData(await r.json());})},[]);
+ if(err) return <main className="p-8"><p className="text-red-600">{err}</p></main>; if(!data) return <main className="p-8">Loading…</main>;
+ const act=async(id:string,action:string)=>{const r=await fetch('/api/platform/admin',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({organizationId:id,action,reason})}); if(r.ok) window.location.reload();};
+ return <main className="min-h-screen bg-slate-100 p-6"><div className="max-w-5xl mx-auto space-y-6"><h1 className="text-2xl font-bold">Platform administration</h1>
+ <div className="grid grid-cols-2 md:grid-cols-4 gap-4">{Object.entries(data.metrics).map(([k,v])=><div key={k} className="bg-white rounded-xl p-4"><p className="text-2xl font-bold">{String(v)}</p><p className="text-xs text-slate-500">{k}</p></div>)}</div>
+ <section className="bg-white rounded-xl p-5"><h2 className="font-bold">Organizations</h2><input aria-label="Suspension reason" placeholder="Reason (required to suspend/reactivate)" value={reason} onChange={e=>setReason(e.target.value)} className="border rounded-lg px-3 py-2 w-full mt-3"/>
+ <ul className="mt-3 space-y-2 text-sm">{data.organizations.map((o:any)=><li key={o.id} className="flex justify-between border rounded-lg p-3"><span><b>{o.name}</b> ({o.slug}) — {o.status}</span><span className="space-x-2"><button className="text-red-600" onClick={()=>act(o.id,'suspend')}>Suspend</button><button className="text-blue-600" onClick={()=>act(o.id,'reactivate')}>Reactivate</button></span></li>)}</ul></section>
+ <section className="bg-white rounded-xl p-5"><h2 className="font-bold">Recent leads / demo requests</h2><ul className="text-sm mt-2 space-y-1">{data.leads.map((l:any)=><li key={l.id}>{l.type}: {l.name} &lt;{l.email}&gt; — {l.status}</li>)}</ul></section>
+ <p className="text-xs text-slate-500">Plan editing: use PUT /api/platform/plans (platform-admin only) or ask an operator — prices there drive the public pricing page and checkout. Platform admins do not get automatic access to customer healthcare data.</p></div></main>; }

@@ -41,6 +41,13 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    if ((user as any).accountStatus === 'pending_verification' || ((user as any).emailVerifiedAt === null && (user as any).accountStatus === 'pending_verification')) {
+      return NextResponse.json({ error: 'Please verify your email before signing in. Check your inbox or request a new verification link.', code: 'email_not_verified' }, { status: 403 });
+    }
+    if ((user as any).accountStatus === 'suspended') {
+      return NextResponse.json({ error: 'This account is suspended. Contact support.' }, { status: 403 });
+    }
+
     if (!user.isActive) {
       return NextResponse.json(
         { error: 'Your account has been deactivated' },
