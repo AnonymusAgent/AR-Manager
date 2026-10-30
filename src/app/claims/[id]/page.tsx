@@ -248,7 +248,7 @@ export default function ClaimDetailPage({ params }: { params: Promise<{ id: stri
   // Load existing analysis on mount — only for denied claims
   useEffect(() => {
     if (!claim) return;
-    const claimIsDenied = claim.status === 'denied' || claim.claimInsuranceStatus === 'denied' || !!claim.denialReason;
+    const claimIsDenied = !['paid', 'closed', 'approved'].includes(claim.status) && (claim.status === 'denied' || claim.claimInsuranceStatus === 'denied' || !!claim.denialReason);
     if (claimIsDenied) {
       fetch(`/api/ai-analysis?claimId=${id}&limit=1`, { credentials: 'include' })
         .then(r => r.json())
@@ -277,7 +277,7 @@ export default function ClaimDetailPage({ params }: { params: Promise<{ id: stri
   const canReview = currentUser && ['administrator', 'supervisor', 'manager', 'senior_lead', 'team_lead'].includes(currentUser.role);
   const canWork = claim.assignee?.id === currentUser?.id || canReview;
   const worked = isWorked(claim.status);
-  const isDenied = claim.status === 'denied' || claim.claimInsuranceStatus === 'denied' || claim.claimInsuranceStatus === 'rejected' || !!claim.denialReason;
+  const isDenied = !['paid', 'closed', 'approved'].includes(claim.status) && (claim.status === 'denied' || claim.claimInsuranceStatus === 'denied' || claim.claimInsuranceStatus === 'rejected' || !!claim.denialReason);
   const genClaimNum = claim.claimNumber || `${(claim.patientName || 'UNK').replace(/\s/g, '-')}-${claim.dateOfService || 'NODATE'}`;
 
   return (
