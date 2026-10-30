@@ -39,3 +39,18 @@ html { scroll-behavior: smooth; }
   .mkt-page-enter, .mkt-float, .mkt-float-slow { animation: none !important; }
   .mkt-tilt { transform: none !important; }
 }
+
+/* ===== Accessibility modes (visitor-controlled, marketing + app-wide CSS) ===== */
+:focus-visible { outline: 2px solid #2563eb; outline-offset: 2px; border-radius: 4px; }
+html.a11y-large-text { font-size: 118%; }
+html.a11y-high-contrast body { background: #fff !important; color: #000 !important; }
+html.a11y-high-contrast p, html.a11y-high-contrast li, html.a11y-high-contrast td, html.a11y-high-contrast span { color: #111 !important; }
+html.a11y-high-contrast a { color: #003fa3 !important; text-decoration: underline; }
+html.a11y-high-contrast .bg-slate-50, html.a11y-high-contrast .bg-slate-100 { background: #fff !important; }
+html.a11y-reduce-motion *, html.a11y-reduce-motion *::before, html.a11y-reduce-motion *::after {
+  animation-duration: 0.01ms !important; animation-iteration-count: 1 !important; transition-duration: 0.01ms !important; scroll-behavior: auto !important;
+}
+html.a11y-reduce-motion .mkt-tilt { transform: none !important; }
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation-duration: 0.01ms !important; animation-iteration-count: 1 !important; transition-duration: 0.01ms !important; }
+}

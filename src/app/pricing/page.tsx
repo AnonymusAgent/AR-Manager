@@ -1,18 +1,33 @@
-'use client';
-import { useEffect, useState, Suspense } from 'react';
-import Link from 'next/link';
 import { MarketingShell, H1 } from '@/components/marketing/Marketing';
-import Reveal from '@/components/marketing/fx/Reveal';
-import TiltCard from '@/components/marketing/fx/TiltCard';
-type Plan={id:string;slug:string;name:string;description:string;monthlyPriceCents:number;annualPriceCents:number;trialDays:number;features:string[]};
-function Inner(){ const [plans,setPlans]=useState<Plan[]>([]); const [annual,setAnnual]=useState(false); const [err,setErr]=useState('');
- useEffect(()=>{fetch('/api/plans').then(r=>r.json()).then(d=>setPlans(d.plans||[])).catch(()=>setErr('Could not load live pricing. Please try again.'))},[]);
- return <MarketingShell><section className="max-w-6xl mx-auto px-5 py-14"><H1>Pricing</H1><p className="mt-3 text-slate-600">Plans are configured by the platform operator — what you see here is loaded live, not hardcoded.</p>
- <div className="mt-6 flex gap-2" role="group" aria-label="Billing interval"><button onClick={()=>setAnnual(false)} className={`px-4 py-2 rounded-lg border ${!annual?'bg-blue-600 text-white':''}`}>Monthly</button><button onClick={()=>setAnnual(true)} className={`px-4 py-2 rounded-lg border ${annual?'bg-blue-600 text-white':''}`}>Annual</button></div>
- {err && <p className="mt-4 text-red-600">{err}</p>}
- <div className="grid md:grid-cols-3 gap-5 mt-8" style={{perspective:'1200px'}}>{plans.map(p=>{const cents=annual?p.annualPriceCents:p.monthlyPriceCents;return <Reveal key={p.id}><TiltCard max={5} className="h-full"><article className={`mkt-card-shadow h-full border rounded-2xl p-6 flex flex-col bg-white ${p.slug==='professional'?'ring-2 ring-blue-600 md:-translate-y-2':''}`}><h2 className="font-bold text-xl">{p.name}</h2><p className="text-sm text-slate-600 mt-1">{p.description}</p>
- <p className="mt-4 text-3xl font-extrabold">{cents? `$${(cents/100).toLocaleString()}${annual?'/yr':'/mo'}` : 'Contact sales'}</p><p className="text-xs text-slate-500">{p.trialDays}-day free trial</p>
- <ul className="mt-4 space-y-1 text-sm text-slate-600 flex-1">{(p.features||[]).map(f=><li key={f}>✓ {f}</li>)}</ul>
- {p.slug==='enterprise'?<Link href="/contact?type=sales" className="mt-6 text-center px-4 py-2.5 border rounded-lg font-semibold">Contact Sales</Link>:<Link href={`/register?plan=${p.slug}`} className="mt-6 text-center px-4 py-2.5 bg-blue-600 text-white rounded-lg font-semibold">Start Trial</Link>}</article></TiltCard></Reveal>})}</div>
- <p className="mt-8 text-sm text-slate-600">You can upgrade, downgrade or cancel from Billing settings. Cancelling stops future renewals; your data is retained per the Subscription & Cancellation Policy — payment failure never deletes your data automatically.</p></section></MarketingShell>; }
-export default function Page(){return <Suspense><Inner/></Suspense>}
+import { getSiteContent } from '@/lib/site-content';
+import PricingClient from '@/components/marketing/PricingClient';
+import { DEFAULT_PLAN_CATALOG, type PlanCatalogItem } from '@/lib/plans-shared';
+import { db } from '@/db';
+import { plans as plansTable } from '@/db/schema';
+export const dynamic = 'force-dynamic';
+export const metadata = { title: 'Pricing — AR Manager', description: 'Starter, Professional and Enterprise plans for medical billing and AR management. Start a free trial, no card required.' };
+
+async function loadPlans(): Promise<{ plans: PlanCatalogItem[]; source: 'live' | 'catalog' }> {
+  try {
+    const rows = (await db.select().from(plansTable)).filter(r => r.isActive).sort((a, b) => a.sortOrder - b.sortOrder);
+    if (!rows.length) return { plans: DEFAULT_PLAN_CATALOG, source: 'catalog' };
+    // Merge DB pricing/features over the catalog so copy like "best for" is never lost.
+    return { source: 'live', plans: rows.map(r => {
+      const base = DEFAULT_PLAN_CATALOG.find(c => c.slug === r.slug);
+      return { slug: r.slug, name: r.name, description: r.description || base?.description || '', bestFor: base?.bestFor || '',
+        monthlyPriceCents: r.monthlyPriceCents, annualPriceCents: r.annualPriceCents, trialDays: r.trialDays,
+        features: (Array.isArray(r.features) && r.features.length ? r.features as string[] : base?.features || []),
+        limits: (r.limits as PlanCatalogItem['limits']) || base?.limits || { seats: 5, claimsPerMonth: 1000 },
+        highlight: r.slug === 'professional', cta: base?.cta || 'Start free trial' };
+    }) };
+  } catch { return { plans: DEFAULT_PLAN_CATALOG, source: 'catalog' }; }
+}
+export default async function Page() {
+  const [c, { plans, source }] = await Promise.all([getSiteContent(), loadPlans()]);
+  return <MarketingShell content={c}><section className="mkt-hero-bg"><div className="mx-auto max-w-6xl px-5 py-14">
+    <p className="text-xs font-bold uppercase tracking-widest text-blue-700">Pricing</p>
+    <div className="mt-2 max-w-2xl"><H1>Simple pricing that pays for itself in recovered AR.</H1></div>
+    <p className="mt-4 max-w-2xl text-lg text-slate-600">Pick a plan, start your free trial in minutes, and give your team the full AR workspace below. No setup fees, no card to try, cancel anytime.</p>
+    <PricingClient plans={plans} source={source} />
+  </div></section></MarketingShell>;
+}

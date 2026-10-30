@@ -11,15 +11,12 @@ export function hashToken(t: string) { return crypto.createHash('sha256').update
 export const appUrl = () => (process.env.NEXT_PUBLIC_APP_URL || process.env.APP_URL || 'http://localhost:3000').replace(/\/$/,'');
 export const rootDomain = () => process.env.NEXT_PUBLIC_ROOT_DOMAIN || ''; // e.g. ar-manager-ten.vercel.app
 
-export const DEFAULT_PLANS = [
- { slug:'starter', name:'Starter', description:'For small practices getting AR under control.', monthlyPriceCents:9900, annualPriceCents:95000, trialDays:14, sortOrder:1, features:['Claims management & work queues','AR aging dashboard','Denial code library (272 codes)','Up to 5 seats','Email support'], limits:{seats:5, claimsPerMonth:1000} },
- { slug:'professional', name:'Professional', description:'For billing teams that need automation, review workflows and reporting.', monthlyPriceCents:24900, annualPriceCents:239000, trialDays:14, sortOrder:2, features:['Everything in Starter','Review & approval workflows','Authorizations, coding queue & tasks','Advanced reports & exports','Custom subdomain','Up to 25 seats','Priority support'], limits:{seats:25, claimsPerMonth:10000} },
- { slug:'enterprise', name:'Enterprise', description:'For billing companies managing many practices, with custom domains and API access.', monthlyPriceCents:0, annualPriceCents:0, trialDays:30, sortOrder:3, features:['Everything in Professional','Custom domain (billing.yourpractice.com)','External API & API keys','Unlimited seats (fair use)','Dedicated onboarding','Contact sales for pricing'], limits:{seats:9999, claimsPerMonth:100000} },
-];
+import { DEFAULT_PLAN_CATALOG } from './plans-shared';
+export { DEFAULT_PLAN_CATALOG as DEFAULT_PLANS } from './plans-shared';
 export async function ensureDefaultPlans() {
   const existing = await db.select().from(plans);
   if (existing.length) return existing;
-  await db.insert(plans).values(DEFAULT_PLANS.map(p=>({...p, features:p.features, limits:p.limits})));
+  await db.insert(plans).values(DEFAULT_PLAN_CATALOG.map(p=>({ slug:p.slug, name:p.name, description:p.description, monthlyPriceCents:p.monthlyPriceCents, annualPriceCents:p.annualPriceCents, trialDays:p.trialDays, features:p.features, limits:p.limits })) as never);
   return db.select().from(plans);
 }
 /** Central entitlement check — server-side only. Never trust plan names from the client. */
