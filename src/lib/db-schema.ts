@@ -21,6 +21,9 @@ const STATEMENTS = [
   `ALTER TABLE "organizations" ADD COLUMN IF NOT EXISTS "status" varchar(20) NOT NULL DEFAULT 'active'`,
   `ALTER TABLE "organizations" ADD COLUMN IF NOT EXISTS "onboarding_step" integer NOT NULL DEFAULT 0`,
   `ALTER TABLE "organizations" ADD COLUMN IF NOT EXISTS "onboarding_complete" boolean NOT NULL DEFAULT false`,
+  `ALTER TABLE "claims" ADD COLUMN IF NOT EXISTS "organization_id" uuid`,
+  `ALTER TABLE "practices" ADD COLUMN IF NOT EXISTS "organization_id" uuid`,
+  `ALTER TABLE "patients" ADD COLUMN IF NOT EXISTS "organization_id" uuid`,
   `CREATE TABLE IF NOT EXISTS "site_settings" ("key" varchar(100) PRIMARY KEY, "value" jsonb NOT NULL, "updated_by" uuid, "updated_at" timestamp NOT NULL DEFAULT now())`,
 ];
 

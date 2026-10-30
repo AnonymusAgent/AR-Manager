@@ -1,0 +1,12 @@
+import assert from 'node:assert';
+import { generateTestClaims } from '../src/lib/test-claims.ts';
+const claims = generateTestClaims(50);
+assert.equal(claims.length, 50, 'exactly 50 claims');
+assert.equal(new Set(claims.map(c => c.claimNumber)).size, 50, 'unique claim numbers');
+assert.ok(claims.every(c => c.claimNumber.startsWith('TEST-CLM-')), 'clearly labelled as test data');
+assert.ok(claims.every(c => Math.abs(parseFloat(c.billedAmount) - parseFloat(c.paidAmount) - parseFloat(c.balance)) < 0.01), 'balance = billed - paid');
+const statuses = new Set(claims.map(c => c.status));
+for (const s of ['new', 'in_progress', 'submitted_for_review', 'approved', 'rework_required', 'denied', 'paid', 'closed']) assert.ok(statuses.has(s), `covers status ${s}`);
+assert.ok(claims.some(c => c.status === 'denied' && c.denialReason), 'has denied claims for AI analysis testing');
+assert.ok(claims.every(c => c.patientName.startsWith('Test Patient')), 'synthetic patients only — no real PHI');
+console.log('test-claims: all checks passed (50 unique, balanced, status coverage, synthetic)');
