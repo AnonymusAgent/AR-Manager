@@ -3,9 +3,10 @@ import { db } from '@/db';
 import { siteSettings } from '@/db/schema';
 import { eq } from 'drizzle-orm';
 import { getCurrentUser } from '@/lib/auth';
+import { requirePlatformAdmin } from '@/lib/platform-admin';
 import { getSiteContent, mergeSiteContent } from '@/lib/site-content';
 import { createAuditLog } from '@/lib/audit';
-const guard = async () => { const u = await getCurrentUser(); return u?.isPlatformAdmin ? u : null; };
+const guard = requirePlatformAdmin;
 export async function GET() { if (!await guard()) return NextResponse.json({ error: 'Forbidden' }, { status: 403 }); return NextResponse.json({ content: await getSiteContent() }); }
 export async function PUT(req: NextRequest) {
   const admin = await guard(); if (!admin) return NextResponse.json({ error: 'Forbidden' }, { status: 403 });

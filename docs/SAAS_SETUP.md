@@ -60,3 +60,9 @@ For every signed-in user (linked from the sidebar, next to Profile / Organizatio
 - **Security & Sessions** — change password, list active sessions (tokens never exposed), sign out individual devices or all other devices (`/api/account/sessions`).
 - **Preferences** — date format, timezone, page size (same sanitized preferences store as `/profile`).
 - **My Organizations** — memberships with links to Organization Settings, Billing and Onboarding.
+
+## 12. Granting platform-admin access (no credentials in source code)
+Pick **one** method — real emails/passwords must never be committed:
+1. **Hosting env allowlist (recommended):** set `PLATFORM_ADMIN_EMAILS=you@example.com` (comma-separated) in Vercel env vars and redeploy. Signing in with a listed email authorizes `/admin/platform` immediately and permanently promotes that user (`users.is_platform_admin=true`), after which the env var can be removed.
+2. **Bootstrap script:** with `DATABASE_URL`, `PLATFORM_ADMIN_EMAIL`, and optionally `PLATFORM_ADMIN_TEMP_PASSWORD` set only in your shell/hosting env, run `npm run bootstrap:admin`. It creates or promotes the admin, stores only a bcrypt hash, marks the account verified/active, and revokes old sessions after a password reset. Change any temporary password at first sign-in (Account Settings → Security & Sessions).
+3. **Direct SQL:** `UPDATE users SET is_platform_admin=true WHERE email='<your email>';` in your database console.

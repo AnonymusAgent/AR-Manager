@@ -3,8 +3,9 @@ import { db } from '@/db';
 import { organizations, users, subscriptions, leads, organizationDomains } from '@/db/schema';
 import { eq, desc } from 'drizzle-orm';
 import { getCurrentUser } from '@/lib/auth';
+import { requirePlatformAdmin } from '@/lib/platform-admin';
 // Platform admin is a SEPARATE flag — being an org admin/administrator never grants platform access, and platform access never grants PHI access.
-const guard = async () => { const u = await getCurrentUser(); return u && u.isPlatformAdmin ? u : null; };
+const guard = requirePlatformAdmin;
 export async function GET() {
   if (!await guard()) return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
   const orgs = await db.select().from(organizations).orderBy(desc(organizations.createdAt)).limit(100);

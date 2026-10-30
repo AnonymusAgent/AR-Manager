@@ -3,8 +3,9 @@ import { db } from '@/db';
 import { users, sessions } from '@/db/schema';
 import { eq, desc, ilike, or } from 'drizzle-orm';
 import { getCurrentUser } from '@/lib/auth';
+import { requirePlatformAdmin } from '@/lib/platform-admin';
 import { createAuditLog } from '@/lib/audit';
-const guard = async () => { const u = await getCurrentUser(); return u?.isPlatformAdmin ? u : null; };
+const guard = requirePlatformAdmin;
 export async function GET(req: NextRequest) {
   if (!await guard()) return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
   const q = req.nextUrl.searchParams.get('q')?.trim();

@@ -3,7 +3,8 @@ import { db } from '@/db';
 import { leads } from '@/db/schema';
 import { eq, desc } from 'drizzle-orm';
 import { getCurrentUser } from '@/lib/auth';
-const guard = async () => { const u = await getCurrentUser(); return u?.isPlatformAdmin ? u : null; };
+import { requirePlatformAdmin } from '@/lib/platform-admin';
+const guard = requirePlatformAdmin;
 export async function GET() { if (!await guard()) return NextResponse.json({ error: 'Forbidden' }, { status: 403 }); return NextResponse.json({ leads: await db.select().from(leads).orderBy(desc(leads.createdAt)).limit(200) }); }
 export async function PATCH(req: NextRequest) {
   if (!await guard()) return NextResponse.json({ error: 'Forbidden' }, { status: 403 });

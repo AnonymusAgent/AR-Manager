@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { getCurrentUser } from '@/lib/auth';
+import { isPlatformAdminUser } from '@/lib/platform-admin';
 
 export async function GET() {
   try {
@@ -19,7 +20,7 @@ export async function GET() {
         firstName: user.firstName,
         lastName: user.lastName,
         role: user.role,
-        isPlatformAdmin: Boolean((user as { isPlatformAdmin?: boolean }).isPlatformAdmin),
+        isPlatformAdmin: isPlatformAdminUser(user as { id: string; email: string; isPlatformAdmin?: boolean }),
         teamLeadId: user.teamLeadId,
       },
     });
