@@ -4,6 +4,9 @@ import { claims, users, claimNotes, claimStatusHistory, claimDocuments, denialCo
 import { eq, desc } from 'drizzle-orm';
 import { getCurrentUser } from '@/lib/auth';
 import { createAuditLog, AUDIT_ACTIONS } from '@/lib/audit';
+import { ensureSaaSColumns, safeErrorDetail } from '@/lib/db-schema';
+
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 export async function GET(
   request: NextRequest,
@@ -16,6 +19,10 @@ export async function GET(
     }
 
     const { id } = await params;
+    if (!UUID_RE.test(id)) {
+      return NextResponse.json({ error: 'Invalid claim ID' }, { status: 400 });
+    }
+    await ensureSaaSColumns();
 
     const [claim] = await db
       .select()
@@ -54,8 +61,11 @@ export async function GET(
       reviewer = reviewerData;
     }
 
-    // Get notes
-    const notes = await db
+    // Get notes (fault-isolated: a broken related table must not block opening the claim)
+    const safe = async <T,>(fn: () => Promise<T>, fallback: T, label: string): Promise<T> => {
+      try { return await fn(); } catch (e) { console.error(`Get claim: ${label} failed:`, e); return fallback; }
+    };
+    const notes = await safe(() => db
       .select({
         id: claimNotes.id,
         note: claimNotes.note,
@@ -68,10 +78,10 @@ export async function GET(
       .from(claimNotes)
       .leftJoin(users, eq(claimNotes.userId, users.id))
       .where(eq(claimNotes.claimId, id))
-      .orderBy(desc(claimNotes.createdAt));
+      .orderBy(desc(claimNotes.createdAt)), [], 'notes');
 
     // Get status history
-    const statusHistory = await db
+    const statusHistory = await safe(() => db
       .select({
         id: claimStatusHistory.id,
         previousStatus: claimStatusHistory.previousStatus,
@@ -85,10 +95,10 @@ export async function GET(
       .from(claimStatusHistory)
       .leftJoin(users, eq(claimStatusHistory.changedBy, users.id))
       .where(eq(claimStatusHistory.claimId, id))
-      .orderBy(desc(claimStatusHistory.createdAt));
+      .orderBy(desc(claimStatusHistory.createdAt)), [], 'status history');
 
     // Get documents
-    const documents = await db
+    const documents = await safe(() => db
       .select({
         id: claimDocuments.id,
         documentType: claimDocuments.documentType,
@@ -99,17 +109,18 @@ export async function GET(
       })
       .from(claimDocuments)
       .where(eq(claimDocuments.claimId, id))
-      .orderBy(desc(claimDocuments.createdAt));
+      .orderBy(desc(claimDocuments.createdAt)), [], 'documents');
 
     // Get denial code if present
     let denialCode = null;
     if (claim.denialCodeId) {
-      const [code] = await db
+      const codeId: number = claim.denialCodeId;
+      const rows = await safe(() => db
         .select()
         .from(denialCodes)
-        .where(eq(denialCodes.id, claim.denialCodeId))
-        .limit(1);
-      denialCode = code;
+        .where(eq(denialCodes.id, codeId))
+        .limit(1), [] as Array<typeof denialCodes.$inferSelect>, 'denial code');
+      denialCode = rows[0] ?? null;
     }
 
     return NextResponse.json({
@@ -132,7 +143,7 @@ export async function GET(
   } catch (error) {
     console.error('Get claim error:', error);
     return NextResponse.json(
-      { error: 'Failed to fetch claim' },
+      { error: 'Failed to fetch claim', detail: safeErrorDetail(error), hint: 'Check /api/health for database/schema status.' },
       { status: 500 }
     );
   }
