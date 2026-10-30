@@ -1119,6 +1119,13 @@ export const processedWebhooks = pgTable('processed_webhooks', {
   type: varchar('type', { length: 100 }),
   createdAt: timestamp('created_at').notNull().defaultNow(),
 });
+export const siteSettings = pgTable('site_settings', {
+  key: varchar('key', { length: 100 }).primaryKey(),
+  value: jsonb('value').notNull(),
+  updatedBy: uuid('updated_by').references(() => users.id),
+  updatedAt: timestamp('updated_at').notNull().defaultNow(),
+});
+export type SiteSetting = typeof siteSettings.$inferSelect;
 export type Plan = typeof plans.$inferSelect;
 export type Subscription = typeof subscriptions.$inferSelect;
 export type OrganizationDomain = typeof organizationDomains.$inferSelect;
