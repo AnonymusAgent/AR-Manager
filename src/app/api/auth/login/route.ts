@@ -6,9 +6,14 @@ import { verifyPassword, createSession } from '@/lib/auth';
 import { createAuditLog, AUDIT_ACTIONS } from '@/lib/audit';
 import { getSessionCookieOptions } from '@/lib/cookie-config';
 import { checkRateLimit, getClientIp } from '@/lib/rate-limit';
+import { ensureSaaSColumns, schemaHint, safeErrorDetail } from '@/lib/db-schema';
 
 export async function POST(request: NextRequest) {
   try {
+    const schema = await ensureSaaSColumns();
+    if (!schema.ok && schema.missingTables.includes('users')) {
+      return NextResponse.json({ error: schemaHint(schema.missingTables), code: 'SCHEMA_NOT_READY' }, { status: 503 });
+    }
     // Rate limiting
     const clientIp = getClientIp(request);
     const rateCheck = await checkRateLimit(clientIp, 'login');
@@ -100,7 +105,7 @@ export async function POST(request: NextRequest) {
   } catch (error) {
     console.error('Login error:', error);
     return NextResponse.json(
-      { error: 'An error occurred during login' },
+      { error: 'An error occurred during login', detail: safeErrorDetail(error), hint: 'If this persists, check /api/health for database/schema status and run npm run db:migrate. See docs/SAAS_SETUP.md.' },
       { status: 500 }
     );
   }
