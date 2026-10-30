@@ -1,0 +1,8 @@
+'use client';
+import { useEffect, useState, Suspense } from 'react'; import { useSearchParams } from 'next/navigation'; import Link from 'next/link';
+function Inner(){ const token=useSearchParams().get('token'); const [email,setEmail]=useState(''); const [msg,setMsg]=useState(token?'Verifying…':'');
+ useEffect(()=>{ if(!token) return; fetch('/api/auth/verify-email',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({token})}).then(async r=>{const d=await r.json(); setMsg(r.ok?'Email verified. You can now sign in.':(d.error||'Verification failed'));}); },[token]);
+ return <main className="min-h-screen bg-slate-100 flex items-center justify-center p-5"><div className="bg-white rounded-2xl shadow p-8 w-full max-w-md"><h1 className="text-2xl font-bold">Verify email</h1>
+ {token ? <p role="status" className="text-sm mt-3">{msg}</p> : <><p className="text-sm text-slate-600 mt-2">Enter your email to resend the verification link.</p><label className="text-sm font-medium block mt-4" htmlFor="email">Email</label><input id="email" type="email" value={email} onChange={e=>setEmail(e.target.value)} className="mt-1 w-full border rounded-lg px-3 py-2"/><button className="w-full mt-4 px-4 py-2.5 bg-blue-600 text-white rounded-lg font-semibold" onClick={async()=>{const r=await fetch('/api/auth/resend-verification',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({email})}); const d=await r.json(); setMsg(d.message||d.error);}}>Resend verification</button>{msg && <p role="status" className="text-sm mt-3">{msg}</p>}</>}
+ <p className="text-sm mt-4"><Link href="/login" className="text-blue-600">Go to sign in</Link></p></div></main>; }
+export default function Page(){return <Suspense><Inner/></Suspense>}

@@ -208,9 +208,13 @@ export default function LoginPage() {
             </Button>
           </form>
 
+          <div className="flex justify-between text-sm mt-4">
+            <a href="/register" className="text-blue-600 font-medium">Create account</a>
+            <a href="/forgot-password" className="text-blue-600 font-medium">Forgot password?</a>
+          </div>
           <div className="mt-6 pt-6 border-t border-slate-200">
             <p className="text-sm text-slate-500 text-center mb-3">
-              First time? Initialize the database with sample data:
+              Development only — initialize the database with sample data:
             </p>
             <Button
               type="button"

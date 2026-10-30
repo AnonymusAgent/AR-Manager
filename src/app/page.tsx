@@ -1,17 +1,13 @@
-'use client';
-
-import { useEffect } from 'react';
-
-export default function HomePage() {
-  useEffect(() => {
-    // Always redirect to login; the login page itself will
-    // check auth status and forward to dashboard if already logged in.
-    window.location.replace('/login');
-  }, []);
-
-  return (
-    <div className="min-h-screen bg-slate-100 flex items-center justify-center">
-      <div className="w-8 h-8 border-4 border-blue-600 border-t-transparent rounded-full animate-spin" />
-    </div>
-  );
-}
+import Link from 'next/link';
+import { MarketingShell, H1 } from '@/components/marketing/Marketing';
+const features = [['AR work queues','Prioritized unworked / working / pending-approval queues so nothing ages silently.'],['Claim tracking & follow-up','15 claim statuses, notes, documents, follow-up dates and full status history.'],['Denial management','272 CARC/RARC codes, denial reasons, coding queue and AI denial analysis.'],['AR aging & reports','Aging, payer breakdown, productivity and exportable reports.'],['Authorizations & tasks','Prior auth, referrals, VOB, charge entry and payment posting workflows.'],['Team collaboration','Role-based access, chat, notifications, sign-offs and a complete audit trail.']];
+export default function Home() { return <MarketingShell>
+  <section className="max-w-6xl mx-auto px-5 py-16 grid md:grid-cols-2 gap-10 items-center"><div><H1>Take Control of Your Medical Billing and Accounts Receivable.</H1>
+  <p className="mt-5 text-lg text-slate-600">Manage your billing operations, monitor outstanding receivables, organize your workflows, and give your team a centralized workspace built around your practice.</p>
+  <div className="mt-7 flex gap-3"><Link href="/register" className="px-6 py-3 bg-blue-600 text-white rounded-lg font-semibold">Start Free Trial</Link><Link href="/contact?type=demo" className="px-6 py-3 border rounded-lg font-semibold">Book a Demo</Link></div>
+  <p className="mt-3 text-xs text-slate-500">No card required to start a trial where a trial plan is selected. Your organization gets its own isolated workspace.</p></div>
+  <div className="bg-[#0F2D52] text-white rounded-2xl p-6 shadow-xl" aria-label="Product overview"><p className="font-bold">Workspace at a glance</p><ul className="mt-4 space-y-3 text-sm">{['Dashboard KPIs & AR aging','Work queue: unworked → working → approved','Denied claims routed to coding','Team productivity & audit trail'].map(x=><li key={x} className="bg-white/10 rounded-lg px-4 py-3">{x}</li>)}</ul><p className="mt-4 text-xs text-white/70">Overview of modules available in the authenticated application — sign in to see your own data.</p></div></section>
+  <section className="max-w-6xl mx-auto px-5 py-8"><h2 className="text-2xl font-bold text-[#0F2D52]">Built for practices, physicians & billing companies</h2><div className="grid md:grid-cols-3 gap-5 mt-6">{features.map(([t,d])=><article key={t} className="border rounded-xl p-5"><h3 className="font-bold">{t}</h3><p className="text-sm text-slate-600 mt-2">{d}</p></article>)}</div></section>
+  <section className="max-w-6xl mx-auto px-5 py-10 grid md:grid-cols-2 gap-6"><div className="bg-slate-50 rounded-xl p-6"><h2 className="font-bold text-lg">Security & privacy</h2><p className="text-sm text-slate-600 mt-2">Hashed passwords, secure HTTP-only sessions, organization-scoped data, audit logs, verified custom domains and rate-limited authentication. We describe safeguards factually and do not claim HIPAA compliance solely from technical features — see our DPA/BAA templates and have them reviewed for your relationship.</p></div>
+  <div className="bg-slate-50 rounded-xl p-6"><h2 className="font-bold text-lg">Plans for every team</h2><p className="text-sm text-slate-600 mt-2">Starter, Professional and Enterprise with monthly/annual billing and trials. Prices are managed by the platform operator and shown live on the pricing page.</p><Link href="/pricing" className="text-blue-600 font-semibold text-sm">Compare plans →</Link></div></section>
+</MarketingShell>; }

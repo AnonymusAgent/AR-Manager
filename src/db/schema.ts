@@ -132,6 +132,9 @@ export const users = pgTable('users', {
   phone: varchar('phone', { length: 50 }),
   avatarUrl: text('avatar_url'),
   preferences: jsonb('preferences'),
+  emailVerifiedAt: timestamp('email_verified_at'),
+  isPlatformAdmin: boolean('is_platform_admin').notNull().default(false),
+  accountStatus: varchar('account_status', { length: 20 }).notNull().default('active'),
   createdAt: timestamp('created_at').notNull().defaultNow(),
   updatedAt: timestamp('updated_at').notNull().defaultNow(),
   lastLoginAt: timestamp('last_login_at'),
@@ -192,6 +195,7 @@ export const claims = pgTable('claims', {
   status: claimStatusEnum('status').notNull().default('new'),
   priority: varchar('priority', { length: 20 }).default('normal'),
   patientId: uuid('patient_id').references(() => patients.id),
+  organizationId: uuid('organization_id').references(() => organizations.id),
   practiceId: uuid('practice_id').references(() => practices.id),
   uploadedFileId: uuid('uploaded_file_id').references(() => uploadedFiles.id),
   assignedTo: uuid('assigned_to').references(() => users.id),
@@ -384,6 +388,7 @@ export const sessionsRelations = relations(sessions, ({ one }) => ({
 // Practices table
 export const practices = pgTable('practices', {
   id: uuid('id').primaryKey().defaultRandom(),
+  organizationId: uuid('organization_id').references(() => organizations.id),
   name: varchar('name', { length: 255 }).notNull(),
   code: varchar('code', { length: 50 }).notNull().unique(),
   address: text('address'),
@@ -867,6 +872,13 @@ export const organizations = pgTable('organizations', {
   taxId: varchar('tax_id', { length: 20 }),
   npi: varchar('npi', { length: 20 }),
   subscriptionTier: varchar('subscription_tier', { length: 20 }).default('standard'),
+  orgType: varchar('org_type', { length: 50 }),
+  country: varchar('country', { length: 100 }),
+  timezone: varchar('timezone', { length: 100 }),
+  ownerUserId: uuid('owner_user_id'),
+  status: varchar('status', { length: 20 }).notNull().default('active'),
+  onboardingStep: integer('onboarding_step').notNull().default(0),
+  onboardingComplete: boolean('onboarding_complete').notNull().default(false),
   isActive: boolean('is_active').notNull().default(true),
   settings: jsonb('settings'),
   createdAt: timestamp('created_at').notNull().defaultNow(),
@@ -899,6 +911,7 @@ export const apiKeys = pgTable('api_keys', {
 // ==================== PATIENTS ====================
 export const patients = pgTable('patients', {
   id: uuid('id').primaryKey().defaultRandom(),
+  organizationId: uuid('organization_id').references(() => organizations.id),
   firstName: varchar('first_name', { length: 100 }).notNull(),
   middleName: varchar('middle_name', { length: 100 }),
   lastName: varchar('last_name', { length: 100 }).notNull(),
@@ -1019,6 +1032,96 @@ export const rateLimits = pgTable('rate_limits', {
   windowStart: timestamp('window_start').notNull().defaultNow(),
   expiresAt: timestamp('expires_at').notNull(),
 });
+
+// ==================== SAAS: PLANS / SUBSCRIPTIONS / DOMAINS / INVITES / TOKENS / LEADS ====================
+export const plans = pgTable('plans', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  slug: varchar('slug', { length: 50 }).notNull().unique(),
+  name: varchar('name', { length: 100 }).notNull(),
+  description: text('description'),
+  monthlyPriceCents: integer('monthly_price_cents').notNull().default(0),
+  annualPriceCents: integer('annual_price_cents').notNull().default(0),
+  currency: varchar('currency', { length: 3 }).notNull().default('USD'),
+  trialDays: integer('trial_days').notNull().default(14),
+  features: jsonb('features'),
+  limits: jsonb('limits'),
+  stripeMonthlyPriceId: varchar('stripe_monthly_price_id', { length: 255 }),
+  stripeAnnualPriceId: varchar('stripe_annual_price_id', { length: 255 }),
+  isActive: boolean('is_active').notNull().default(true),
+  sortOrder: integer('sort_order').notNull().default(0),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+  updatedAt: timestamp('updated_at').notNull().defaultNow(),
+});
+export const subscriptions = pgTable('subscriptions', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  organizationId: uuid('organization_id').notNull().references(() => organizations.id, { onDelete: 'cascade' }),
+  planId: uuid('plan_id').references(() => plans.id),
+  billingProvider: varchar('billing_provider', { length: 50 }),
+  externalCustomerId: varchar('external_customer_id', { length: 255 }),
+  externalSubscriptionId: varchar('external_subscription_id', { length: 255 }),
+  status: varchar('status', { length: 30 }).notNull().default('trialing'),
+  billingInterval: varchar('billing_interval', { length: 10 }).notNull().default('monthly'),
+  trialEnd: timestamp('trial_end'),
+  currentPeriodEnd: timestamp('current_period_end'),
+  cancelAtPeriodEnd: boolean('cancel_at_period_end').notNull().default(false),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+  updatedAt: timestamp('updated_at').notNull().defaultNow(),
+});
+export const organizationDomains = pgTable('organization_domains', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  organizationId: uuid('organization_id').notNull().references(() => organizations.id, { onDelete: 'cascade' }),
+  hostname: varchar('hostname', { length: 255 }).notNull().unique(),
+  isSubdomain: boolean('is_subdomain').notNull().default(false),
+  verificationStatus: varchar('verification_status', { length: 20 }).notNull().default('pending'),
+  verificationTokenHash: text('verification_token_hash'),
+  verificationTokenPlain: varchar('verification_token_plain', { length: 100 }),
+  hostingStatus: varchar('hosting_status', { length: 30 }).notNull().default('not_configured'),
+  tlsStatus: varchar('tls_status', { length: 30 }).notNull().default('unknown'),
+  verifiedAt: timestamp('verified_at'),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+  updatedAt: timestamp('updated_at').notNull().defaultNow(),
+});
+export const organizationInvitations = pgTable('organization_invitations', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  organizationId: uuid('organization_id').notNull().references(() => organizations.id, { onDelete: 'cascade' }),
+  email: varchar('email', { length: 255 }).notNull(),
+  orgRole: varchar('org_role', { length: 50 }).notNull().default('member'),
+  tokenHash: text('token_hash').notNull(),
+  expiresAt: timestamp('expires_at').notNull(),
+  acceptedAt: timestamp('accepted_at'),
+  revokedAt: timestamp('revoked_at'),
+  invitedBy: uuid('invited_by').references(() => users.id),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+});
+export const authTokens = pgTable('auth_tokens', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  userId: uuid('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  type: varchar('type', { length: 30 }).notNull(), // email_verification | password_reset
+  tokenHash: text('token_hash').notNull(),
+  expiresAt: timestamp('expires_at').notNull(),
+  usedAt: timestamp('used_at'),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+});
+export const leads = pgTable('leads', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  type: varchar('type', { length: 20 }).notNull().default('contact'), // contact | sales | demo
+  name: varchar('name', { length: 255 }).notNull(),
+  email: varchar('email', { length: 255 }).notNull(),
+  organization: varchar('organization', { length: 255 }),
+  phone: varchar('phone', { length: 50 }),
+  message: text('message'),
+  status: varchar('status', { length: 20 }).notNull().default('new'),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+});
+export const processedWebhooks = pgTable('processed_webhooks', {
+  id: varchar('id', { length: 255 }).primaryKey(), // provider event id (idempotency)
+  provider: varchar('provider', { length: 50 }).notNull(),
+  type: varchar('type', { length: 100 }),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+});
+export type Plan = typeof plans.$inferSelect;
+export type Subscription = typeof subscriptions.$inferSelect;
+export type OrganizationDomain = typeof organizationDomains.$inferSelect;
 
 // Type exports
 export type User = typeof users.$inferSelect;
