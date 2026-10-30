@@ -19,6 +19,7 @@ export async function GET() {
         firstName: user.firstName,
         lastName: user.lastName,
         role: user.role,
+        isPlatformAdmin: Boolean((user as { isPlatformAdmin?: boolean }).isPlatformAdmin),
         teamLeadId: user.teamLeadId,
       },
     });

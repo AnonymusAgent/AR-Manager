@@ -12,7 +12,7 @@ import {
   UserCircle, CreditCard, FileDown,
 } from 'lucide-react';
 
-interface User { id: string; email: string; firstName: string; lastName: string; role: string; }
+interface User { id: string; email: string; firstName: string; lastName: string; role: string; isPlatformAdmin?: boolean; }
 interface SidebarProps { user: User; collapsed: boolean; onToggle: () => void; onLogout: () => void; }
 
 const ALL_ROLES = ['administrator', 'supervisor', 'manager', 'senior_lead', 'team_lead', 'ar_executive', 'billing_user'];
@@ -46,11 +46,15 @@ const navigationItems = [
   { href: '/audit-logs', icon: History, label: 'Audit Logs', roles: ADMIN_ROLES },
   { href: '/notifications', icon: Bell, label: 'Notifications', roles: ALL_ROLES },
   { href: '/profile', icon: UserCircle, label: 'My Profile & Settings', roles: ALL_ROLES },
+  { href: '/settings/account', icon: UserCircle, label: 'Account Settings', roles: ALL_ROLES },
+  { href: '/settings/organization', icon: Building2, label: 'Organization Settings', roles: ALL_ROLES },
+  { href: '/settings/billing', icon: CreditCard, label: 'Billing & Plan', roles: ALL_ROLES },
+  { href: '/admin/platform', icon: Globe, label: 'Website & Platform Admin', roles: ALL_ROLES, platformAdminOnly: true },
 ];
 
 export function Sidebar({ user, collapsed, onToggle, onLogout }: SidebarProps) {
   const pathname = usePathname();
-  const filteredNav = navigationItems.filter(item => item.roles.includes(user.role));
+  const filteredNav = navigationItems.filter(item => item.roles.includes(user.role) && (!(item as {platformAdminOnly?: boolean}).platformAdminOnly || user.isPlatformAdmin));
 
   return (
     <aside className={`fixed left-0 top-0 h-full bg-[#0F2D52] text-white transition-all duration-300 z-40 ${collapsed ? 'w-[60px]' : 'w-[240px]'}`}>

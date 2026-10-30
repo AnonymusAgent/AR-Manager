@@ -12,7 +12,7 @@ export async function GET() {
   const subs = await db.select().from(subscriptions);
   const leadRows = await db.select().from(leads).orderBy(desc(leads.createdAt)).limit(50);
   const domains = await db.select().from(organizationDomains);
-  return NextResponse.json({ metrics: { organizations: orgs.length, users: allUsers.length, trials: subs.filter(s=>s.status==='trialing').length, activeSubscriptions: subs.filter(s=>s.status==='active').length, cancelled: subs.filter(s=>s.status==='cancelled').length, paymentFailures: subs.filter(s=>s.status==='past_due').length, pendingDomains: domains.filter(d=>d.verificationStatus!=='verified').length }, organizations: orgs, leads: leadRows });
+  return NextResponse.json({ integrations: { emailConfigured: Boolean(process.env.SMTP_HOST && process.env.SMTP_USER && process.env.SMTP_PASS), paymentsConfigured: Boolean(process.env.STRIPE_SECRET_KEY), webhookConfigured: Boolean(process.env.STRIPE_WEBHOOK_SECRET), rootDomain: process.env.NEXT_PUBLIC_ROOT_DOMAIN || null, appUrl: process.env.NEXT_PUBLIC_APP_URL || null }, domains, metrics: { organizations: orgs.length, users: allUsers.length, trials: subs.filter(s=>s.status==='trialing').length, activeSubscriptions: subs.filter(s=>s.status==='active').length, cancelled: subs.filter(s=>s.status==='cancelled').length, paymentFailures: subs.filter(s=>s.status==='past_due').length, pendingDomains: domains.filter(d=>d.verificationStatus!=='verified').length }, organizations: orgs, leads: leadRows });
 }
 export async function POST(req: NextRequest) {
   const admin = await guard(); if (!admin) return NextResponse.json({ error: 'Forbidden' }, { status: 403 });

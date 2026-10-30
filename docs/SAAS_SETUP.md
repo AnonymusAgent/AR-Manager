@@ -43,3 +43,20 @@ Create products/prices in Stripe, put price IDs on plans (platform admin API), s
 - [ ] `npm run typecheck && npm run build`, `node tests/saas-unit.test.mjs`
 - [ ] Two-org cross-tenant test with real DB: register Org A and Org B, confirm B cannot read A's domains/invitations/billing via direct API calls
 - [ ] Legal review of Terms/Privacy/DPA/BAA; incident-response & retention policy documented
+
+## 10. Platform Admin — Website Manager (`/admin/platform`)
+Requires `users.is_platform_admin = true`. Tabs:
+- **Overview** — org/user/trial/subscription/domain metrics and shortcuts.
+- **Website** — edits everything public visitors see, stored in `site_settings` (migration `0004_site_settings.sql`): brand/tagline/support contacts, announcement banner, homepage hero CTAs, feature cards, About/Roadmap, FAQs, all legal pages, SEO title/description. Saving publishes immediately (marketing pages are `force-dynamic` and read through `GET /api/site`). Changes are audit-logged as `site_content_updated`.
+- **Plans & Pricing** — create/edit/disable plans, $ prices, trial days, feature lists, seat/usage limits (JSON) and Stripe price IDs. Edits drive `/pricing` and checkout. Disable is a soft-disable so existing subscriptions keep working.
+- **Organizations** — suspend/reactivate with a mandatory audit-logged reason.
+- **Users** — search all users; activate/deactivate (deactivation revokes sessions), grant/remove platform admin, revoke sessions, mark email verified. You cannot modify your own platform account from here.
+- **Leads Inbox** — contact/sales/demo submissions from `/contact` with status workflow and delete.
+- **Domains & System** — custom-domain verification/hosting/TLS status and integration configuration status (booleans only; secrets are never displayed).
+
+## 11. Account Settings (`/settings/account`)
+For every signed-in user (linked from the sidebar, next to Profile / Organization Settings / Billing):
+- **Profile** — first/last name, phone, avatar URL (email is the sign-in identity).
+- **Security & Sessions** — change password, list active sessions (tokens never exposed), sign out individual devices or all other devices (`/api/account/sessions`).
+- **Preferences** — date format, timezone, page size (same sanitized preferences store as `/profile`).
+- **My Organizations** — memberships with links to Organization Settings, Billing and Onboarding.
