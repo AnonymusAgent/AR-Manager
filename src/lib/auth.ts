@@ -4,6 +4,7 @@ import { cookies } from 'next/headers';
 import { db } from '@/db';
 import { users, sessions } from '@/db/schema';
 import { eq, and, gt } from 'drizzle-orm';
+import { ensureSaaSColumns } from '@/lib/db-schema';
 
 const JWT_SECRET = new TextEncoder().encode(
   process.env.JWT_SECRET || 'your-secret-key-change-in-production'
@@ -54,6 +55,7 @@ export async function verifySession(token: string) {
       return null;
     }
 
+    await ensureSaaSColumns();
     const [user] = await db
       .select()
       .from(users)
