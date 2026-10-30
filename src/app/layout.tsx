@@ -6,6 +6,8 @@ import "./globals.css";
 export const metadata: Metadata = {
   title: "Account Receivable | Medical Billing AR Management System",
   description: "Enterprise healthcare revenue cycle management software for AR, billing operations, and claims management.",
+  icons: { icon: "/logo-mark.svg" },
+  openGraph: { images: ["/logo.svg"] },
 };
 
 export default function RootLayout({ children }: { children: ReactNode }) {

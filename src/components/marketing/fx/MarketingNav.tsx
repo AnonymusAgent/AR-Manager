@@ -3,6 +3,7 @@ import { useState } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import A11yToolbar from './A11yToolbar';
+import Image from 'next/image';
 const LINKS = [['/features', 'Features'], ['/pricing', 'Pricing'], ['/about', 'About'], ['/faq', 'FAQ'], ['/contact', 'Contact']] as const;
 export default function MarketingNav({ brandName }: { brandName: string }) {
   const [open, setOpen] = useState(false);
@@ -10,7 +11,10 @@ export default function MarketingNav({ brandName }: { brandName: string }) {
   const linkCls = (href: string) => `relative rounded-md px-1 py-1 hover:text-blue-700 focus-visible:outline-2 focus-visible:outline-blue-600 after:absolute after:-bottom-1 after:left-0 after:h-0.5 after:bg-blue-600 after:transition-all ${pathname === href ? 'text-blue-700 font-bold after:w-full' : 'after:w-0 hover:after:w-full'}`;
   return (
     <nav className="mx-auto flex max-w-6xl items-center justify-between px-5 py-4" aria-label="Main navigation">
-      <Link href="/" className="rounded-md text-xl font-extrabold text-[#0F2D52] focus-visible:outline-2 focus-visible:outline-blue-600">{brandName}</Link>
+      <Link href="/" className="flex items-center gap-2.5 rounded-md focus-visible:outline-2 focus-visible:outline-blue-600" aria-label={`${brandName} — home`}>
+        <Image src="/logo-mark.svg" alt="" width={38} height={38} priority className="drop-shadow-sm" />
+        <span className="text-xl font-extrabold leading-none text-[#0F2D52]">{brandName.replace(/\s+/g,' ').split(' ').length > 1 ? <>{brandName.split(' ')[0]}<span className="block text-[13px] font-bold tracking-wide text-blue-600">{brandName.split(' ').slice(1).join(' ')}</span></> : brandName}</span>
+      </Link>
       <div className="hidden items-center gap-6 text-sm font-medium md:flex">
         {LINKS.map(([h, l]) => <Link key={h} href={h} aria-current={pathname === h ? 'page' : undefined} className={linkCls(h)}>{l}</Link>)}
       </div>

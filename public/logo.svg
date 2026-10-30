@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 340 120" role="img" aria-label="AR Manager">
+  <defs>
+    <linearGradient id="pulse" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#2dd4bf"/>
+      <stop offset="1" stop-color="#22c55e"/>
+    </linearGradient>
+  </defs>
+  <path d="M60 10 102 34v52L60 110 18 86V34Z" fill="#2563eb" transform="translate(-7 5)"/>
+  <path d="M60 10 102 34v52L60 110 18 86V34Z" fill="#0b1e3f"/>
+  <path d="M14 68h22l10-24 16 40 22-34" fill="none" stroke="url(#pulse)" stroke-width="8" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M70 46h15v15" fill="none" stroke="#22c55e" stroke-width="8" stroke-linecap="round" stroke-linejoin="round"/>
+  <text x="122" y="58" font-family="Inter, Arial, sans-serif" font-size="34" font-weight="800" fill="#0b1e3f">AR</text>
+  <text x="122" y="95" font-family="Inter, Arial, sans-serif" font-size="34" font-weight="800" fill="#0b1e3f">Manager</text>
+</svg>
